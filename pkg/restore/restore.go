@@ -1035,6 +1035,37 @@ func (ctx *restoreContext) restoreItem(obj *unstructured.Unstructured, groupReso
 		default:
 			ctx.log.Infof("Restoring persistent volume as-is because it doesn't have a snapshot and its reclaim policy is not Delete.")
 
+			shouldRenamePV, err := shouldRenamePV(ctx, obj, resourceClient)
+			if err != nil {
+				errs.Add(namespace, err)
+				return warnings, errs
+			}
+			if shouldRenamePV {
+				oldName := obj.GetName()
+				pvName, err := ctx.pvRenamer(oldName)
+				if err != nil {
+					errs.Add(namespace, errors.Wrapf(err, "error renaming PV"))
+					return warnings, errs
+				}
+
+				ctx.renamedPVs[oldName] = pvName
+				obj.SetName(pvName)
+
+				// add the original PV name as an annotation
+				annotations := obj.GetAnnotations()
+				if annotations == nil {
+					annotations = map[string]string{}
+				}
+				annotations["velero.io/original-pv-name"] = oldName
+				obj.SetAnnotations(annotations)
+			}
+
+			// Check to see if the claimRef.namespace field needs to be remapped, and do so if necessary.
+			_, err = remapClaimRefNS(ctx, obj)
+			if err != nil {
+				errs.Add(namespace, err)
+				return warnings, errs
+			}
 			obj = resetVolumeBindingInfo(obj)
 			// We call the pvRestorer here to clear out the PV's claimRef.UID,
 			// so it can be re-claimed when its PVC is restored and gets a new UID.

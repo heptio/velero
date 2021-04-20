@@ -2176,6 +2176,101 @@ func TestRestorePersistentVolumes(t *testing.T) {
 			},
 		},
 		{
+			name:    "when a PV without a snapshot is used by a PVC in a namespace that's being remapped, and the original PV exists in-cluster, the PV is renamed",
+			restore: defaultRestore().NamespaceMappings("source-ns", "target-ns").Result(),
+			backup:  defaultBackup().Result(),
+			tarball: test.NewTarWriter(t).
+				AddItems(
+					"persistentvolumes",
+					builder.ForPersistentVolume("source-pv").
+						//ReclaimPolicy(corev1api.PersistentVolumeReclaimRetain).
+						AWSEBSVolumeID("source-volume").
+						ClaimRef("source-ns", "pvc-1").
+						Result(),
+				).
+				AddItems(
+					"persistentvolumeclaims",
+					builder.ForPersistentVolumeClaim("source-ns", "pvc-1").VolumeName("source-pv").Result(),
+				).
+				Done(),
+			apiResources: []*test.APIResource{
+				test.PVs(
+					builder.ForPersistentVolume("source-pv").
+						//ReclaimPolicy(corev1api.PersistentVolumeReclaimRetain).
+						AWSEBSVolumeID("source-volume").
+						ClaimRef("source-ns", "pvc-1").
+						Result(),
+				),
+				test.PVCs(),
+			},
+			want: []*test.APIResource{
+				test.PVs(
+					builder.ForPersistentVolume("source-pv").
+						AWSEBSVolumeID("source-volume").
+						ClaimRef("source-ns", "pvc-1").
+						Result(),
+					builder.ForPersistentVolume("renamed-source-pv").
+						ObjectMeta(
+							builder.WithAnnotations("velero.io/original-pv-name", "source-pv"),
+							builder.WithLabels("velero.io/backup-name", "backup-1", "velero.io/restore-name", "restore-1"),
+						// the namespace for this PV's claimRef should be the one that the PVC was remapped into.
+						).ClaimRef("target-ns", "pvc-1").
+						AWSEBSVolumeID("source-volume").
+						Result(),
+				),
+				test.PVCs(
+					builder.ForPersistentVolumeClaim("target-ns", "pvc-1").
+						ObjectMeta(
+							builder.WithLabels("velero.io/backup-name", "backup-1", "velero.io/restore-name", "restore-1"),
+						).
+						VolumeName("renamed-source-pv").
+						Result(),
+				),
+			},
+		},
+		{
+			name:    "when a PV without a snapshot is used by a PVC in a namespace that's being remapped, and the original PV does not exist in-cluster, the PV is not renamed",
+			restore: defaultRestore().NamespaceMappings("source-ns", "target-ns").Result(),
+			backup:  defaultBackup().Result(),
+			tarball: test.NewTarWriter(t).
+				AddItems(
+					"persistentvolumes",
+					builder.ForPersistentVolume("source-pv").
+						AWSEBSVolumeID("source-volume").
+						ClaimRef("source-ns", "pvc-1").
+						Result(),
+				).
+				AddItems(
+					"persistentvolumeclaims",
+					builder.ForPersistentVolumeClaim("source-ns", "pvc-1").VolumeName("source-pv").Result(),
+				).
+				Done(),
+			apiResources: []*test.APIResource{
+				test.PVs(),
+				test.PVCs(),
+			},
+			want: []*test.APIResource{
+				test.PVs(
+					builder.ForPersistentVolume("source-pv").
+						//ReclaimPolicy(corev1api.PersistentVolumeReclaimRetain).
+						ObjectMeta(
+							builder.WithLabels("velero.io/backup-name", "backup-1", "velero.io/restore-name", "restore-1"),
+						).
+						ClaimRef("target-ns", "pvc-1").
+						AWSEBSVolumeID("source-volume").
+						Result(),
+				),
+				test.PVCs(
+					builder.ForPersistentVolumeClaim("target-ns", "pvc-1").
+						ObjectMeta(
+							builder.WithLabels("velero.io/backup-name", "backup-1", "velero.io/restore-name", "restore-1"),
+						).
+						VolumeName("source-pv").
+						Result(),
+				),
+			},
+		},
+		{
 			name:    "when a PV is renamed and the original PV does not exist in-cluster, the PV should be renamed",
 			restore: defaultRestore().NamespaceMappings("source-ns", "target-ns").Result(),
 			backup:  defaultBackup().Result(),
