@@ -28,7 +28,7 @@ var _ = Describe("[Basic] Backup/restore of 2 namespaces", func() {
 		Expect(err).To(Succeed())
 		if installVelero {
 			Expect(veleroInstall(context.Background(), veleroImage, veleroNamespace, cloudProvider, objectStoreProvider, false,
-				cloudCredentialsFile, bslBucket, bslPrefix, bslConfig, vslConfig, "")).To(Succeed())
+				cloudCredentialsFile, bslBucket, bslPrefix, bslConfig, vslConfig, crdsVersion, "")).To(Succeed())
 
 		}
 	})
@@ -65,7 +65,7 @@ var _ = Describe("[Scale] Backup/restore of 2500 namespaces", func() {
 		Expect(err).To(Succeed())
 		if installVelero {
 			Expect(veleroInstall(context.Background(), veleroImage, veleroNamespace, cloudProvider, objectStoreProvider, false,
-				cloudCredentialsFile, bslBucket, bslPrefix, bslConfig, vslConfig, "")).To(Succeed())
+				cloudCredentialsFile, bslBucket, bslPrefix, bslConfig, vslConfig, crdsVersion, "")).To(Succeed())
 
 		}
 	})

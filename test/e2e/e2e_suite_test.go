@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	veleroCLI, veleroImage, cloudCredentialsFile, bslConfig, bslBucket, bslPrefix, vslConfig, cloudProvider, objectStoreProvider, veleroNamespace string
+	veleroCLI, veleroImage, cloudCredentialsFile, bslConfig, bslBucket, bslPrefix, vslConfig, cloudProvider, objectStoreProvider, veleroNamespace, crdsVersion string
 	additionalBSLProvider, additionalBSLBucket, additionalBSLPrefix, additionalBSLConfig, additionalBSLCredentials                                string
 	installVelero                                                                                                                                 bool
 )
@@ -49,6 +49,7 @@ func init() {
 	flag.StringVar(&additionalBSLPrefix, "additional-bsl-prefix", "", "prefix under which all Velero data should be stored within the bucket for additional backup storage location. Optional.")
 	flag.StringVar(&additionalBSLConfig, "additional-bsl-config", "", "configuration to use for the additional backup storage location. Format is key1=value1,key2=value2")
 	flag.StringVar(&additionalBSLCredentials, "additional-bsl-credentials-file", "", "file containing credentials for additional backup storage location provider. Required if testing multiple credentials support.")
+	flag.StringVar(&crdsVersion, "crds-version", "v1", "CRD apiVersion for velero CRD creation.")
 }
 
 func TestE2e(t *testing.T) {

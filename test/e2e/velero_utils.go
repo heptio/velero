@@ -286,7 +286,7 @@ func veleroRestore(ctx context.Context, veleroCLI string, veleroNamespace string
 
 func veleroInstall(ctx context.Context, veleroImage string, veleroNamespace string, cloudProvider string, objectStoreProvider string, useVolumeSnapshots bool,
 	cloudCredentialsFile string, bslBucket string, bslPrefix string, bslConfig string, vslConfig string,
-	features string) error {
+	crdsVersion string, features string) error {
 
 	if cloudProvider != "kind" {
 		if objectStoreProvider != "" {
@@ -330,6 +330,7 @@ func veleroInstall(ctx context.Context, veleroImage string, veleroNamespace stri
 	}
 	veleroInstallOptions.UseRestic = !useVolumeSnapshots
 	veleroInstallOptions.Image = veleroImage
+	veleroInstallOptions.CRDsVersion = crdsVersion
 	veleroInstallOptions.Namespace = veleroNamespace
 
 	err = installVeleroServer(veleroInstallOptions)
