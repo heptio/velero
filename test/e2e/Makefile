@@ -35,6 +35,10 @@ REPO_ROOT := $(shell git rev-parse --show-toplevel)
 help:  ## Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
+.PHONY:ginkgo
+ginkgo: # Make sure ginkgo is in $GOPATH/bin
+	go get github.com/onsi/ginkgo/ginkgo
+
 ## --------------------------------------
 ## Binaries
 ## --------------------------------------
@@ -44,11 +48,16 @@ BIN_DIR := bin
 TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
 GINKGO := $(GOPATH)/bin/ginkgo
 KUSTOMIZE := $(TOOLS_BIN_DIR)/kustomize
-OUTPUT_DIR := _output/$(GOOS)/$(GOARCH)/bin
+OUTPUT_DIR := _output/$(GOOS)/$(GOARCH)/bin/
+GINKGO_SKIP ?= 
 GINKGO_FOCUS ?=
+GINKGO_SKIP_LONG ?= "2500 namespaces"
 VELERO_CLI ?=$$(pwd)/../../_output/bin/$(GOOS)/$(GOARCH)/velero
+
+## --------------------------------------
+## Configuration flags
+## --------------------------------------
 VELERO_IMAGE ?= velero/velero:main
-VELERO_NAMESPACE ?= velero
 CREDS_FILE ?=
 BSL_BUCKET ?=
 BSL_PREFIX ?=
@@ -64,10 +73,6 @@ ADDITIONAL_BSL_BUCKET ?=
 ADDITIONAL_BSL_PREFIX ?=
 ADDITIONAL_BSL_CONFIG ?=
 
-.PHONY:ginkgo
-ginkgo: # Make sure ginkgo is in $GOPATH/bin
-	go get github.com/onsi/ginkgo/ginkgo
-
 .PHONY: run
 run: ginkgo
 		@[ "${CREDS_FILE}" ] && echo "Using credentials from ${CREDS_FILE}" || \
@@ -76,9 +81,8 @@ run: ginkgo
 			(echo "Bucket to store the backups from E2E tests is required, please re-run with BSL_BUCKET=<BucketName>"; exit 1 )
 		@[ "${CLOUD_PROVIDER}" ] && echo "Using cloud provider ${CLOUD_PROVIDER}" || \
 		    (echo "Cloud provider for target cloud/plug-in provider is required, please rerun with CLOUD_PROVIDER=<aws,azure,kind,vsphere>"; exit 1)
-	@$(GINKGO) -v -focus="$(GINKGO_FOCUS)" . -- -velerocli=$(VELERO_CLI) \
+	@$(GINKGO) -v -focus="$(GINKGO_FOCUS)" -skip="$(GINKGO_SKIP)" -skip="$(GINKGO_SKIP_LONG)" . -- -velerocli=$(VELERO_CLI) \
 		-velero-image=$(VELERO_IMAGE) \
-		-velero-namespace=$(VELERO_NAMESPACE) \
 		-credentials-file=$(CREDS_FILE) \
 		-bucket=$(BSL_BUCKET) \
 		-prefix=$(BSL_PREFIX) \

@@ -27,9 +27,11 @@ import (
 	corev1api "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/vmware-tanzu/velero/pkg/builder"
+	"github.com/vmware-tanzu/velero/pkg/label"
 )
 
 // ensureClusterExists returns whether or not a kubernetes cluster exists for tests to be run on.
@@ -37,13 +39,16 @@ func ensureClusterExists(ctx context.Context) error {
 	return exec.CommandContext(ctx, "kubectl", "cluster-info").Run()
 }
 
-// createNamespace creates a kubernetes namespace
-func createNamespace(ctx context.Context, client testClient, namespace string) error {
+// createNamespace creates a Kubernetes namespace with the given name and adds the
+// label key "e2e:". The optional labelValue parameter sets the label value: "e2e:<labelValue>".
+func createNamespace(ctx context.Context, client testClient, namespace, labelValue string) error {
 	ns := builder.ForNamespace(namespace).Result()
+	addE2ELabel(ns, labelValue)
 	_, err := client.clientGo.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 	if apierrors.IsAlreadyExists(err) {
 		return nil
 	}
+
 	return err
 }
 
@@ -51,23 +56,55 @@ func getNamespace(ctx context.Context, client testClient, namespace string) (*co
 	return client.clientGo.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 }
 
+// deleteNamespaceListWithLabel deletes all namespaces that match the label "e2e:<labelValue>". If a matching list
+// is found and successfully deleted, the list of the deleted namespaces is returned. When calling this function
+// inside tear-down blocks probably not necessary to check if namespaces were found.
+func deleteNamespaceListWithLabel(ctx context.Context, client testClient, labelValue string) ([]corev1api.Namespace, error) {
+	if labelValue == "" {
+		return nil, errors.New("a label must be specified to delete only the intended namespaces and not all")
+	}
+
+	namespaceList, err := client.clientGo.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
+		LabelSelector: e2eLabel(labelValue),
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Could not retrieve namespaces")
+	}
+
+	fmt.Println("Deleting namespaces with the label", e2eLabel(labelValue))
+	for _, ns := range namespaceList.Items {
+		err = client.clientGo.CoreV1().Namespaces().Delete(ctx, ns.Name, metav1.DeleteOptions{})
+		if err != nil {
+			return nil, errors.Wrapf(err, "Could not delete namespace %s", ns.Name)
+		}
+	}
+
+	return namespaceList.Items, nil
+}
+
 // waitForNamespaceDeletion waits for namespace to be deleted.
-func waitForNamespaceDeletion(interval, timeout time.Duration, client testClient, ns string) error {
+func waitForNamespaceDeletion(ctx context.Context, interval, timeout time.Duration, client testClient, ns string) error {
+	fmt.Printf("Initiating termination of the %s namespace\n", ns)
 	err := wait.PollImmediate(interval, timeout, func() (bool, error) {
-		_, err := client.clientGo.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
+		_, err := client.clientGo.CoreV1().Namespaces().Get(ctx, ns, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return true, nil
 			}
 			return false, err
 		}
-		fmt.Printf("Namespace %s is still being deleted...\n", ns)
+		fmt.Printf("Waiting for namespace %s to terminate...\n", ns)
 		return false, nil
 	})
-	return err
+	if err != nil {
+		fmt.Printf("Namespace %s not successfully terminated...\n", ns)
+		return err
+	}
+	fmt.Printf("Namespace %s successfully terminated...\n", ns)
+	return nil
 }
 
-func createSecretFromFiles(ctx context.Context, client testClient, namespace string, name string, files map[string]string) error {
+func createSecretFromFiles(ctx context.Context, client testClient, veleroNamespace veleroNamespace, name string, files map[string]string) error {
 	data := make(map[string][]byte)
 
 	for key, filePath := range files {
@@ -79,8 +116,9 @@ func createSecretFromFiles(ctx context.Context, client testClient, namespace str
 		data[key] = contents
 	}
 
-	secret := builder.ForSecret(namespace, name).Data(data).Result()
-	_, err := client.clientGo.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
+	secret := builder.ForSecret(veleroNamespace.String(), name).Data(data).Result()
+	addE2ELabel(secret, "")
+	_, err := client.clientGo.CoreV1().Secrets(veleroNamespace.String()).Create(ctx, secret, metav1.CreateOptions{})
 	return err
 }
 
@@ -107,4 +145,26 @@ func waitForPods(ctx context.Context, client testClient, namespace string, pods 
 		return errors.Wrapf(err, fmt.Sprintf("Failed to wait for pods in namespace %s to start running", namespace))
 	}
 	return nil
+}
+
+// addE2ELabel labels the provided object with a "e2e" key and, optionally, the given label value.
+// Example: an input of "multiple-resources" will add
+// a properly formatted label of "e2e=multiple-resources".
+// An empty value will label the object with only the key "e2e".
+func addE2ELabel(obj metav1.Object, labelValue string) {
+	labels := obj.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+
+	labels["velero-e2e"] = label.GetValidName(labelValue)
+	obj.SetLabels(labels)
+}
+
+func e2eLabel(labelValue string) string {
+	label := map[string]string{
+		"velero-e2e": labelValue,
+	}
+
+	return labels.FormatLabels(label)
 }

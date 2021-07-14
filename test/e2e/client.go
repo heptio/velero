@@ -17,6 +17,8 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
+
 	"k8s.io/client-go/kubernetes"
 	kbclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -43,6 +45,8 @@ type testClient struct {
 	// controller runtime framework by v2.0, it is the intent to remove all
 	// client-go API clients. Please use the controller runtime to make API calls for tests.
 	dynamicFactory client.DynamicFactory
+
+	ctx context.Context
 }
 
 // newTestClient returns a set of ready-to-use API clients.
@@ -75,5 +79,6 @@ func newTestClient() (testClient, error) {
 		kubebuilder:    kb,
 		clientGo:       clientGo,
 		dynamicFactory: factory,
+		ctx:            context.Background(),
 	}, nil
 }

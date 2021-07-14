@@ -154,7 +154,7 @@ func Run(ctx context.Context, kbClient kbclient.Client, namespace string, waitTo
 	}
 
 	if waitToTerminate && len(ns.Name) != 0 {
-		fmt.Println("Waiting for Velero uninstall to complete. You may safely press ctrl-c to stop waiting - uninstall will continue in the background.")
+		fmt.Printf("Waiting for Velero uninstall to complete on namespace %s. You may safely press ctrl-c to stop waiting - uninstall will continue in the background.\n", ns.Name)
 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -176,10 +176,11 @@ func Run(ctx context.Context, kbClient kbclient.Client, namespace string, waitTo
 	}
 
 	if kubeerrs.NewAggregate(errs) != nil {
-		fmt.Printf("Errors while attempting to uninstall Velero: %q", kubeerrs.NewAggregate(errs))
+		fmt.Printf("Errors while attempting to uninstall Velero: %q from the namespace %s ", kubeerrs.NewAggregate(errs), namespace)
 		return kubeerrs.NewAggregate(errs)
 	}
 
-	fmt.Println("Velero uninstalled ⛵")
+	msg := fmt.Sprintf("Velero uninstalled from the %s namespace", namespace)
+	fmt.Println(msg + " ⛵")
 	return nil
 }

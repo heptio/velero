@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"flag"
+	"fmt"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -25,9 +26,8 @@ import (
 )
 
 var (
-	veleroCLI, veleroImage, cloudCredentialsFile, bslConfig, bslBucket, bslPrefix, vslConfig, cloudProvider, objectStoreProvider, veleroNamespace string
-	additionalBSLProvider, additionalBSLBucket, additionalBSLPrefix, additionalBSLConfig, additionalBSLCredentials                                string
-	installVelero                                                                                                                                 bool
+	veleroCLI, veleroImage, cloudCredentialsFile, bslConfig, bslBucket, bslPrefix, vslConfig, cloudProvider, objectStoreProvider string
+	additionalBSLProvider, additionalBSLBucket, additionalBSLPrefix, additionalBSLConfig, additionalBSLCredentials               string
 )
 
 func init() {
@@ -40,8 +40,6 @@ func init() {
 	flag.StringVar(&bslConfig, "bsl-config", "", "configuration to use for the backup storage location. Format is key1=value1,key2=value2")
 	flag.StringVar(&bslPrefix, "prefix", "", "prefix under which all Velero data should be stored within the bucket. Optional.")
 	flag.StringVar(&vslConfig, "vsl-config", "", "configuration to use for the volume snapshot location. Format is key1=value1,key2=value2")
-	flag.StringVar(&veleroNamespace, "velero-namespace", "velero", "Namespace to install Velero into")
-	flag.BoolVar(&installVelero, "install-velero", true, "Install/uninstall velero during the test.  Optional.")
 
 	// Flags to create an additional BSL for multiple credentials test
 	flag.StringVar(&additionalBSLProvider, "additional-bsl-object-store-provider", "", "Provider of object store plugin for additional backup storage location. Required if testing multiple credentials support.")
@@ -58,6 +56,14 @@ func TestE2e(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E tests")
 	}
+
+	if cloudProvider != "kind" && vslConfig == "" {
+		fmt.Println("\nWARNING! You are about to test Velero on a cloud provider but " +
+			"did not set the `vslConfig` configuration for snapshots. Continue testing only if " +
+			"not running tests that interact with snapshots.\n")
+	}
+
+	fmt.Println("========================")
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "E2e Suite")
