@@ -1,0 +1,71 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.3.0
+  creationTimestamp: null
+  name: deletebackuprequests.velero.io
+spec:
+  group: velero.io
+  names:
+    kind: DeleteBackupRequest
+    listKind: DeleteBackupRequestList
+    plural: deletebackuprequests
+    singular: deletebackuprequest
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: DeleteBackupRequest is a request to delete one or more backups.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DeleteBackupRequestSpec is the specification for which backups
+              to delete.
+            properties:
+              backupName:
+                type: string
+            required:
+            - backupName
+            type: object
+          status:
+            description: DeleteBackupRequestStatus is the current status of a DeleteBackupRequest.
+            properties:
+              errors:
+                description: Errors contains any errors that were encountered during
+                  the deletion process.
+                items:
+                  type: string
+                nullable: true
+                type: array
+              phase:
+                description: Phase is the current state of the DeleteBackupRequest.
+                enum:
+                - New
+                - InProgress
+                - Processed
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

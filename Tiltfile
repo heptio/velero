@@ -1,17 +1,17 @@
 # -*- mode: Python -*-
 
 k8s_yaml([
-    'config/crd/bases/velero.io_backups.yaml',
-    'config/crd/bases/velero.io_backupstoragelocations.yaml',
-    'config/crd/bases/velero.io_deletebackuprequests.yaml',
-    'config/crd/bases/velero.io_downloadrequests.yaml',
-    'config/crd/bases/velero.io_podvolumebackups.yaml',
-    'config/crd/bases/velero.io_podvolumerestores.yaml',
-    'config/crd/bases/velero.io_resticrepositories.yaml',
-    'config/crd/bases/velero.io_restores.yaml',
-    'config/crd/bases/velero.io_schedules.yaml',
-    'config/crd/bases/velero.io_serverstatusrequests.yaml',
-    'config/crd/bases/velero.io_volumesnapshotlocations.yaml',
+    'config/crd/v1/bases/velero.io_backups.yaml',
+    'config/crd/v1/bases/velero.io_backupstoragelocations.yaml',
+    'config/crd/v1/bases/velero.io_deletebackuprequests.yaml',
+    'config/crd/v1/bases/velero.io_downloadrequests.yaml',
+    'config/crd/v1/bases/velero.io_podvolumebackups.yaml',
+    'config/crd/v1/bases/velero.io_podvolumerestores.yaml',
+    'config/crd/v1/bases/velero.io_resticrepositories.yaml',
+    'config/crd/v1/bases/velero.io_restores.yaml',
+    'config/crd/v1/bases/velero.io_schedules.yaml',
+    'config/crd/v1/bases/velero.io_serverstatusrequests.yaml',
+    'config/crd/v1/bases/velero.io_volumesnapshotlocations.yaml',
 ])
 
 # default values

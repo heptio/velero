@@ -1,6 +1,6 @@
 #!/bin/bash -e
 #
-# Copyright 2017 the Velero contributors.
+# Copyright the Velero contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,11 +19,14 @@ HACK_DIR=$(dirname "${BASH_SOURCE}")
 ${HACK_DIR}/update-generated-crd-code.sh --verify-only
 
 # ensure no changes to generated CRDs
-if ! git diff --exit-code config/crd/crds/crds.go >/dev/null; then
-  # revert changes to state before running CRD generation to stay consistent
-  # with code-generator `--verify-only` option which discards generated changes
-  git checkout config/crd
+for version in v1beta1 v1
+do
+  if ! git diff --exit-code config/crd/$version/crds/crds.go >/dev/null; then
+    # revert changes to state before running CRD generation to stay consistent
+    # with code-generator `--verify-only` option which discards generated changes
+    git checkout config/crd
 
-  echo "CRD verification - failed! Generated CRDs are out-of-date, please run 'make update' and 'git add' the generated file(s)."
-  exit 1
-fi
+    echo "CRD verification - failed! Generated CRDs are out-of-date, please run 'make update' and 'git add' the generated file(s)."
+    exit 1
+  fi
+done

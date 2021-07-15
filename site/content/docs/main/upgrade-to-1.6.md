@@ -39,6 +39,8 @@ If you're not yet running at least Velero v1.5, see the following:
     velero install --crds-only --dry-run -o yaml | kubectl apply -f -
     ```
 
+    **NOTE:** You could change the default CRD API version (v1beta1 _or_ v1) if Velero CLI can't discover the Kubernetes preferred CRD API version. The Kubernetes version < 1.16 preferred CRD API version is v1beta1; the Kubernetes version >= 1.16 preferred CRD API version is v1.
+
     **NOTE:** If you are upgrading Velero in Kubernetes 1.14.x or earlier, you will need to use `kubectl apply`'s `--validate=false` option when applying the CRD configuration above. See [issue 2077][6] and [issue 2311][7] for more context.
 
 1. Update the container image used by the Velero deployment and, optionally, the restic daemon set:

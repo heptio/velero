@@ -1,5 +1,5 @@
 /*
-Copyright 2020 the Velero contributors.
+Copyright the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,15 +25,18 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
+	velerodiscovery "github.com/vmware-tanzu/velero/pkg/discovery"
 	"github.com/vmware-tanzu/velero/pkg/install"
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 )
@@ -68,6 +71,7 @@ type InstallOptions struct {
 	Plugins                           flag.StringArray
 	NoDefaultBackupLocation           bool
 	CRDsOnly                          bool
+	CRDsVersion                       string
 	CACertFile                        string
 	Features                          string
 	DefaultVolumesToRestic            bool
@@ -102,6 +106,7 @@ func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
 	flags.DurationVar(&o.DefaultResticMaintenanceFrequency, "default-restic-prune-frequency", o.DefaultResticMaintenanceFrequency, "How often 'restic prune' is run for restic repositories by default. Optional.")
 	flags.Var(&o.Plugins, "plugins", "Plugin container images to install into the Velero Deployment")
 	flags.BoolVar(&o.CRDsOnly, "crds-only", o.CRDsOnly, "Only generate CustomResourceDefinition resources. Useful for updating CRDs for an existing Velero install.")
+	flags.StringVar(&o.CRDsVersion, "crds-version", o.CRDsVersion, "The version to generate CustomResourceDefinition resources if Velero can't discover the Kubernetes preferred CRD API version. Optional.")
 	flags.StringVar(&o.CACertFile, "cacert", o.CACertFile, "File containing a certificate bundle to use when verifying TLS connections to the object store. Optional.")
 	flags.StringVar(&o.Features, "features", o.Features, "Comma separated list of Velero feature flags to be set on the Velero deployment and the restic daemonset, if restic is enabled")
 	flags.BoolVar(&o.DefaultVolumesToRestic, "default-volumes-to-restic", o.DefaultVolumesToRestic, "Bool flag to configure Velero server to use restic by default to backup all pod volumes on all backups. Optional.")
@@ -128,6 +133,7 @@ func NewInstallOptions() *InstallOptions {
 		UseVolumeSnapshots:      true,
 		NoDefaultBackupLocation: false,
 		CRDsOnly:                false,
+		CRDsVersion:             "v1",
 		DefaultVolumesToRestic:  false,
 	}
 }
@@ -186,6 +192,7 @@ func (o *InstallOptions) AsVeleroOptions() (*install.VeleroOptions, error) {
 		NoDefaultBackupLocation:           o.NoDefaultBackupLocation,
 		CACertData:                        caCertData,
 		Features:                          strings.Split(o.Features, ","),
+		CRDsVersion:                       o.CRDsVersion,
 		DefaultVolumesToRestic:            o.DefaultVolumesToRestic,
 	}, nil
 }
@@ -246,9 +253,30 @@ This is useful as a starting point for more customized installations.
 
 // Run executes a command in the context of the provided arguments.
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
+	// Find the kube-apiserver group apiextensions.k8s.io preferred API version
+	clientset, err := f.KubeClient()
+	if err == nil {
+		// kubeconfig available
+		discoveryHelper, err := velerodiscovery.NewHelper(clientset.Discovery(), &logrus.Logger{})
+		if err == nil {
+			// kubernetes apiserver available
+			gvr, _, err := discoveryHelper.ResourceFor(
+				schema.GroupVersionResource{
+					Group:    "apiextensions.k8s.io",
+					Resource: "customresourcedefinitions",
+				})
+			if err != nil {
+				return err
+			}
+
+			// Update the group apiextensions.k8s.io preferred API version
+			o.CRDsVersion = gvr.Version
+		}
+	}
+
 	var resources *unstructured.UnstructuredList
 	if o.CRDsOnly {
-		resources = install.AllCRDs()
+		resources = install.AllCRDs(o.CRDsVersion)
 	} else {
 		vo, err := o.AsVeleroOptions()
 		if err != nil {
@@ -313,6 +341,11 @@ func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 func (o *InstallOptions) Validate(c *cobra.Command, args []string, f client.Factory) error {
 	if err := output.ValidateFlags(c); err != nil {
 		return err
+	}
+
+	// Check the CRD version is valid.
+	if o.CRDsVersion != "v1beta1" && o.CRDsVersion != "v1" {
+		return errors.Errorf("CRD version must be v1beta1 or v1")
 	}
 
 	// If we're only installing CRDs, we can skip the rest of the validation.
