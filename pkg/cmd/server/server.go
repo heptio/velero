@@ -90,8 +90,9 @@ const (
 	defaultResourceTerminatingTimeout = 10 * time.Minute
 
 	// server's client default qps and burst
-	defaultClientQPS   float32 = 20.0
-	defaultClientBurst int     = 30
+	defaultClientQPS      float32 = 20.0
+	defaultClientBurst    int     = 30
+	defaultClientPageSize int     = 500
 
 	defaultProfilerAddress = "localhost:6060"
 
@@ -115,6 +116,7 @@ type serverConfig struct {
 	disabledControllers                                                     []string
 	clientQPS                                                               float32
 	clientBurst                                                             int
+	clientPageSize                                                          int
 	profilerAddress                                                         string
 	formatFlag                                                              *logging.FormatFlag
 	defaultResticMaintenanceFrequency                                       time.Duration
@@ -142,6 +144,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 			restoreResourcePriorities:         defaultRestorePriorities,
 			clientQPS:                         defaultClientQPS,
 			clientBurst:                       defaultClientBurst,
+			clientPageSize:                    defaultClientPageSize,
 			profilerAddress:                   defaultProfilerAddress,
 			resourceTerminatingTimeout:        defaultResourceTerminatingTimeout,
 			formatFlag:                        logging.NewFormatFlag(),
@@ -205,6 +208,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 	command.Flags().Var(&volumeSnapshotLocations, "default-volume-snapshot-locations", "List of unique volume providers and default volume snapshot location (provider1:location-01,provider2:location-02,...)")
 	command.Flags().Float32Var(&config.clientQPS, "client-qps", config.clientQPS, "Maximum number of requests per second by the server to the Kubernetes API once the burst limit has been reached.")
 	command.Flags().IntVar(&config.clientBurst, "client-burst", config.clientBurst, "Maximum number of requests by the server to the Kubernetes API in a short period of time.")
+	command.Flags().IntVar(&config.clientPageSize, "client-page-size", config.clientPageSize, "Page size of requests by the server to the Kubernetes API when listing objects during a backup. Set to 0 to disable paging.")
 	command.Flags().StringVar(&config.profilerAddress, "profiler-address", config.profilerAddress, "The address to expose the pprof profiler.")
 	command.Flags().DurationVar(&config.resourceTerminatingTimeout, "terminating-resource-timeout", config.resourceTerminatingTimeout, "How long to wait on persistent volumes and namespaces to terminate during a restore before timing out.")
 	command.Flags().DurationVar(&config.defaultBackupTTL, "default-backup-ttl", config.defaultBackupTTL, "How long to wait by default before backups can be garbage collected.")
@@ -248,6 +252,10 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, errors.New("client-burst must be positive")
 	}
 	f.SetClientBurst(config.clientBurst)
+
+	if config.clientPageSize < 0 {
+		return nil, errors.New("client-page-size must not be negative")
+	}
 
 	kubeClient, err := f.KubeClient()
 	if err != nil {
@@ -610,6 +618,7 @@ func (s *server) runControllers(defaultVolumeSnapshotLocations map[string]string
 			s.resticManager,
 			s.config.podVolumeOperationTimeout,
 			s.config.defaultVolumesToRestic,
+			s.config.clientPageSize,
 		)
 		cmd.CheckError(err)
 

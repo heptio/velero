@@ -1,0 +1,1 @@
+Add --client-page-size flag to server to allow chunking Kubernetes API LIST calls across multiple requests on large clusters

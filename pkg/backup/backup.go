@@ -1,5 +1,5 @@
 /*
-Copyright 2020 the Velero contributors.
+Copyright the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -73,6 +73,7 @@ type kubernetesBackupper struct {
 	resticBackupperFactory restic.BackupperFactory
 	resticTimeout          time.Duration
 	defaultVolumesToRestic bool
+	clientPageSize         int
 }
 
 type resolvedAction struct {
@@ -106,6 +107,7 @@ func NewKubernetesBackupper(
 	resticBackupperFactory restic.BackupperFactory,
 	resticTimeout time.Duration,
 	defaultVolumesToRestic bool,
+	clientPageSize int,
 ) (Backupper, error) {
 	return &kubernetesBackupper{
 		backupClient:           backupClient,
@@ -115,6 +117,7 @@ func NewKubernetesBackupper(
 		resticBackupperFactory: resticBackupperFactory,
 		resticTimeout:          resticTimeout,
 		defaultVolumesToRestic: defaultVolumesToRestic,
+		clientPageSize:         clientPageSize,
 	}, nil
 }
 
@@ -272,6 +275,7 @@ func (kb *kubernetesBackupper) Backup(log logrus.FieldLogger, backupRequest *Req
 		dynamicFactory:        kb.dynamicFactory,
 		cohabitatingResources: cohabitatingResources(),
 		dir:                   tempDir,
+		pageSize:              kb.clientPageSize,
 	}
 
 	items := collector.getAllItems()

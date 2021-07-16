@@ -1,5 +1,5 @@
 /*
-Copyright 2020 the Velero contributors.
+Copyright the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 package backup
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -25,10 +26,13 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/tools/pager"
 
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/discovery"
@@ -45,6 +49,7 @@ type itemCollector struct {
 	dynamicFactory        client.DynamicFactory
 	cohabitatingResources map[string]*cohabitatingResource
 	dir                   string
+	pageSize              int
 }
 
 type kubernetesResource struct {
@@ -275,6 +280,7 @@ func (r *itemCollector) getResourceItems(log logrus.FieldLogger, gv schema.Group
 	var items []*kubernetesResource
 
 	for _, namespace := range namespacesToList {
+		// List items from Kubernetes API
 		log = log.WithField("namespace", namespace)
 
 		resourceClient, err := r.dynamicFactory.ClientForGroupVersionResource(gv, resource, namespace)
@@ -287,18 +293,65 @@ func (r *itemCollector) getResourceItems(log logrus.FieldLogger, gv schema.Group
 		if selector := r.backupRequest.Spec.LabelSelector; selector != nil {
 			labelSelector = metav1.FormatLabelSelector(selector)
 		}
+		listOptions := metav1.ListOptions{LabelSelector: labelSelector}
 
 		log.Info("Listing items")
-		unstructuredList, err := resourceClient.List(metav1.ListOptions{LabelSelector: labelSelector})
-		if err != nil {
-			log.WithError(errors.WithStack(err)).Error("Error listing items")
-			continue
-		}
-		log.Infof("Retrieved %d items", len(unstructuredList.Items))
+		unstructuredItems := make([]unstructured.Unstructured, 0)
 
-		// collect the items
-		for i := range unstructuredList.Items {
-			item := &unstructuredList.Items[i]
+		if r.pageSize > 0 {
+			// If limit is positive, use a pager to split list over multiple requests
+			// Use Velero's dynamic list function instead of the default
+			listFunc := pager.SimplePageFunc(func(opts metav1.ListOptions) (runtime.Object, error) {
+				list, err := resourceClient.List(listOptions)
+				if err != nil {
+					return nil, err
+				}
+				return list, nil
+			})
+			listPager := pager.New(listFunc)
+			// Use the page size defined in the server config
+			// TODO allow configuration of page buffer size
+			listPager.PageSize = int64(r.pageSize)
+			// Add each item to temporary slice
+			var items []unstructured.Unstructured
+			err := listPager.EachListItem(context.Background(), listOptions, func(object runtime.Object) error {
+				item, isUnstructured := object.(*unstructured.Unstructured)
+				if !isUnstructured {
+					// We should never hit this
+					log.Error("Got type other than Unstructured from pager func")
+					return nil
+				}
+				items = append(items, *item)
+				return nil
+			})
+			if statusError, isStatusError := err.(*apierrors.StatusError); isStatusError && statusError.Status().Reason == metav1.StatusReasonExpired {
+				log.WithError(errors.WithStack(err)).Error("Error paging item list. Falling back on unpaginated list")
+				unstructuredList, err := resourceClient.List(listOptions)
+				if err != nil {
+					log.WithError(errors.WithStack(err)).Error("Error listing items")
+					continue
+				}
+				items = unstructuredList.Items
+			} else if err != nil {
+				log.WithError(errors.WithStack(err)).Error("Error paging item list")
+				continue
+			}
+			unstructuredItems = append(unstructuredItems, items...)
+		} else {
+			// If limit is not positive, do not use paging. Instead, request all items at once
+			unstructuredList, err := resourceClient.List(metav1.ListOptions{LabelSelector: labelSelector})
+			unstructuredItems = append(unstructuredItems, unstructuredList.Items...)
+			if err != nil {
+				log.WithError(errors.WithStack(err)).Error("Error listing items")
+				continue
+			}
+		}
+
+		log.Infof("Retrieved %d items", len(unstructuredItems))
+
+		// Collect items in included Namespaces
+		for i := range unstructuredItems {
+			item := &unstructuredItems[i]
 
 			if gr == kuberesource.Namespaces && !r.backupRequest.NamespaceIncludesExcludes.ShouldInclude(item.GetName()) {
 				log.WithField("name", item.GetName()).Info("Skipping namespace because it's excluded")
