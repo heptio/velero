@@ -54,6 +54,9 @@ func (a *InitRestoreHookPodAction) Execute(input *velero.RestoreItemActionExecut
 	}
 	hookHandler := hook.InitContainerRestoreHookHandler{}
 	postHooksItem, err := hookHandler.HandleRestoreHooks(a.logger, kuberesource.Pods, input.Item, restoreHooks)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	a.logger.Infof("Returning from InitRestoreHookPodAction")
 
 	return velero.NewRestoreItemActionExecuteOutput(&unstructured.Unstructured{Object: postHooksItem.UnstructuredContent()}), nil
