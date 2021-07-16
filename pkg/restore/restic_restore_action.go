@@ -1,5 +1,5 @@
 /*
-Copyright 2018, 2019, 2020 the Velero contributors.
+Copyright the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,9 +29,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	veleroimage "github.com/vmware-tanzu/velero/internal/velero"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
-	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 	velerov1client "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/typed/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/plugin/framework"
@@ -41,7 +41,6 @@ import (
 )
 
 const (
-	defaultImageBase       = "velero/velero-restic-restore-helper"
 	defaultCPURequestLimit = "100m"
 	defaultMemRequestLimit = "128Mi"
 	defaultCommand         = "/velero-restic-restore-helper"
@@ -193,13 +192,13 @@ func getCommand(log logrus.FieldLogger, config *corev1.ConfigMap) []string {
 func getImage(log logrus.FieldLogger, config *corev1.ConfigMap) string {
 	if config == nil {
 		log.Debug("No config found for plugin")
-		return initContainerImage(defaultImageBase)
+		return veleroimage.DefaultResticRestoreHelperImage()
 	}
 
 	image := config.Data["image"]
 	if image == "" {
 		log.Debugf("No custom image configured")
-		return initContainerImage(defaultImageBase)
+		return veleroimage.DefaultResticRestoreHelperImage()
 	}
 
 	log = log.WithField("image", image)
@@ -207,15 +206,17 @@ func getImage(log logrus.FieldLogger, config *corev1.ConfigMap) string {
 	parts := strings.Split(image, "/")
 
 	if len(parts) == 1 {
+		defaultImage := veleroimage.DefaultResticRestoreHelperImage()
 		// Image supplied without registry part
-		log.Debugf("Plugin config contains image name without registry name. Return defaultImageBase")
-		return initContainerImage(defaultImageBase)
+		log.Infof("Plugin config contains image name without registry name. Using default init container image: %q", defaultImage)
+		return defaultImage
 	}
 
 	if !(strings.Contains(parts[len(parts)-1], ":")) {
-		// tag-less image name: add tag
-		log.Debugf("Plugin config contains image name without tag. Adding tag.")
-		return initContainerImage(image)
+		tag := veleroimage.ImageTag()
+		// tag-less image name: add default image tag for this version of Velero
+		log.Infof("Plugin config contains image name without tag. Adding tag: %q", tag)
+		return fmt.Sprintf("%s:%s", image, tag)
 	} else {
 		// tagged image name
 		log.Debugf("Plugin config contains image name with tag")
@@ -305,13 +306,4 @@ func newResticInitContainerBuilder(image, restoreUID string) *builder.ContainerB
 				},
 			},
 		}...)
-}
-
-func initContainerImage(imageBase string) string {
-	tag := buildinfo.Version
-	if tag == "" {
-		tag = "latest"
-	}
-
-	return fmt.Sprintf("%s:%s", imageBase, tag)
 }

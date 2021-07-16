@@ -35,12 +35,14 @@ require (
 	google.golang.org/genproto v0.0.0-20200731012542-8145dea6a485 // indirect
 	google.golang.org/grpc v1.31.0
 	google.golang.org/protobuf v1.25.0 // indirect
-	k8s.io/api v0.19.7
-	k8s.io/apiextensions-apiserver v0.19.7
-	k8s.io/apimachinery v0.19.7
-	k8s.io/cli-runtime v0.19.7
-	k8s.io/client-go v0.19.7
+	k8s.io/api v0.19.12
+	k8s.io/apiextensions-apiserver v0.19.12
+	k8s.io/apimachinery v0.19.12
+	k8s.io/cli-runtime v0.19.12
+	k8s.io/client-go v0.19.12
 	k8s.io/klog v1.0.0
 	sigs.k8s.io/cluster-api v0.3.11-0.20210106212952-b6c1b5b3db3d
 	sigs.k8s.io/controller-runtime v0.7.1-0.20201215171748-096b2e07c091
 )
+
+replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2

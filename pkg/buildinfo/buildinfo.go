@@ -1,5 +1,5 @@
 /*
-Copyright 2017 the Velero contributors.
+Copyright the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,6 +31,10 @@ var (
 	// GitTreeState indicates if the git tree is clean or dirty, set by the go linker's -X flag at build
 	// time.
 	GitTreeState string
+
+	// ImageRegistry is the image registry that this build of Velero should use by default to pull the
+	// Velero and Restic Restore Helper images from.
+	ImageRegistry string
 )
 
 // FormattedGitSHA renders the Git SHA with an indicator of the tree state.

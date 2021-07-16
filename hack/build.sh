@@ -41,6 +41,11 @@ if [[ -z "${VERSION}" ]]; then
     exit 1
 fi
 
+if [[ -z "${REGISTRY}" ]]; then
+    echo "REGISTRY must be set"
+    exit 1
+fi
+
 if [[ -z "${GIT_SHA}" ]]; then
     echo "GIT_SHA must be set"
     exit 1
@@ -59,6 +64,7 @@ fi
 export CGO_ENABLED=0
 
 LDFLAGS="-X ${PKG}/pkg/buildinfo.Version=${VERSION}"
+LDFLAGS="${LDFLAGS} -X ${PKG}/pkg/buildinfo.ImageRegistry=${REGISTRY}"
 LDFLAGS="${LDFLAGS} -X ${PKG}/pkg/buildinfo.GitSHA=${GIT_SHA}"
 LDFLAGS="${LDFLAGS} -X ${PKG}/pkg/buildinfo.GitTreeState=${GIT_TREE_STATE}"
 

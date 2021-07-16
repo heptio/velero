@@ -91,6 +91,9 @@ echo "BUILDX_PLATFORMS: $BUILDX_PLATFORMS"
 
 echo "Building and pushing container images."
 
+# The use of "registry" as the buildx output type below instructs
+# Docker to push the image
+
 VERSION="$VERSION" \
 TAG_LATEST="$TAG_LATEST" \
 BUILDX_PLATFORMS="$BUILDX_PLATFORMS" \

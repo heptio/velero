@@ -29,20 +29,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/vmware-tanzu/velero/config/crd/crds"
-	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 )
 
-// Use "latest" if the build process didn't supply a version
-func imageVersion() string {
-	if buildinfo.Version == "" {
-		return "latest"
-	}
-	return buildinfo.Version
-}
-
-// DefaultImage is the default image to use for the Velero deployment and restic daemonset containers.
 var (
-	DefaultImage               = "velero/velero:" + imageVersion()
 	DefaultVeleroPodCPURequest = "500m"
 	DefaultVeleroPodMemRequest = "128Mi"
 	DefaultVeleroPodCPULimit   = "1000m"

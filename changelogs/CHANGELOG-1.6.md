@@ -1,3 +1,20 @@
+## v1.6.2
+### 2021-07-16
+
+### Download
+https://github.com/vmware-tanzu/velero/releases/tag/v1.6.2
+
+### Container Image
+`velero/velero:v1.6.2`
+
+### Documentation
+https://velero.io/docs/v1.6/
+
+### Upgrading
+https://velero.io/docs/v1.6/upgrade-to-1.6/
+
+This release contains no user facing changes but includes fixes for CVE-2021-3121 and CVE-2021-3580.
+
 ## v1.6.1
 ### 2021-06-21
 

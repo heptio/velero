@@ -1,5 +1,5 @@
 /*
-Copyright 2019 the Velero contributors.
+Copyright the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package restore
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -31,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 
+	veleroimage "github.com/vmware-tanzu/velero/internal/velero"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
 	"github.com/vmware-tanzu/velero/pkg/buildinfo"
@@ -49,41 +49,40 @@ func TestGetImage(t *testing.T) {
 		}
 	}
 
-	originalVersion := buildinfo.Version
-	buildinfo.Version = "buildinfo-version"
-	defer func() {
-		buildinfo.Version = originalVersion
-	}()
+	defaultImage := veleroimage.DefaultResticRestoreHelperImage()
 
 	tests := []struct {
-		name      string
-		configMap *corev1api.ConfigMap
-		want      string
+		name             string
+		configMap        *corev1api.ConfigMap
+		buildInfoVersion string
+		want             string
 	}{
 		{
-			name:      "nil config map returns default image with buildinfo.Version as tag",
+			name:      "nil config map returns default image",
 			configMap: nil,
-			want:      fmt.Sprintf("%s:%s", defaultImageBase, buildinfo.Version),
+			want:      defaultImage,
 		},
 		{
-			name:      "config map without 'image' key returns default image with buildinfo.Version as tag",
+			name:      "config map without 'image' key returns default image",
 			configMap: configMapWithData("non-matching-key", "val"),
-			want:      fmt.Sprintf("%s:%s", defaultImageBase, buildinfo.Version),
+			want:      defaultImage,
 		},
 		{
-			name:      "config map without '/' in image name returns default image with buildinfo.Version as tag",
+			name:      "config map without '/' in image name returns default image",
 			configMap: configMapWithData("image", "my-image"),
-			want:      fmt.Sprintf("%s:%s", defaultImageBase, buildinfo.Version),
+			want:      defaultImage,
 		},
 		{
-			name:      "config map with untagged image returns image with buildinfo.Version as tag",
-			configMap: configMapWithData("image", "myregistry.io/my-image"),
-			want:      fmt.Sprintf("%s:%s", "myregistry.io/my-image", buildinfo.Version),
+			name:             "config map with untagged image returns image with buildinfo.Version as tag",
+			configMap:        configMapWithData("image", "myregistry.io/my-image"),
+			buildInfoVersion: "buildinfo-version",
+			want:             "myregistry.io/my-image:buildinfo-version",
 		},
 		{
-			name:      "config map with untagged image and custom registry port with ':' returns image with buildinfo.Version as tag",
-			configMap: configMapWithData("image", "myregistry.io:34567/my-image"),
-			want:      fmt.Sprintf("%s:%s", "myregistry.io:34567/my-image", buildinfo.Version),
+			name:             "config map with untagged image and custom registry port with ':' returns image with buildinfo.Version as tag",
+			configMap:        configMapWithData("image", "myregistry.io:34567/my-image"),
+			buildInfoVersion: "buildinfo-version",
+			want:             "myregistry.io:34567/my-image:buildinfo-version",
 		},
 		{
 			name:      "config map with tagged image returns tagged image",
@@ -99,6 +98,13 @@ func TestGetImage(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.buildInfoVersion != "" {
+				originalVersion := buildinfo.Version
+				buildinfo.Version = test.buildInfoVersion
+				defer func() {
+					buildinfo.Version = originalVersion
+				}()
+			}
 			assert.Equal(t, test.want, getImage(velerotest.NewLogger(), test.configMap))
 		})
 	}
@@ -119,6 +125,8 @@ func TestResticRestoreActionExecute(t *testing.T) {
 		veleroNs    = "velero"
 	)
 
+	defaultResticRestoreHelperImage := veleroimage.DefaultResticRestoreHelperImage()
+
 	tests := []struct {
 		name             string
 		pod              *corev1api.Pod
@@ -135,7 +143,7 @@ func TestResticRestoreActionExecute(t *testing.T) {
 				ObjectMeta(
 					builder.WithAnnotations("snapshot.velero.io/myvol", "")).
 				InitContainers(
-					newResticInitContainerBuilder(initContainerImage(defaultImageBase), "").
+					newResticInitContainerBuilder(defaultResticRestoreHelperImage, "").
 						Resources(&resourceReqs).
 						SecurityContext(&securityContext).
 						VolumeMounts(builder.ForVolumeMount("myvol", "/restores/myvol").Result()).
@@ -152,7 +160,7 @@ func TestResticRestoreActionExecute(t *testing.T) {
 				ObjectMeta(
 					builder.WithAnnotations("snapshot.velero.io/myvol", "")).
 				InitContainers(
-					newResticInitContainerBuilder(initContainerImage(defaultImageBase), "").
+					newResticInitContainerBuilder(defaultResticRestoreHelperImage, "").
 						Resources(&resourceReqs).
 						SecurityContext(&securityContext).
 						VolumeMounts(builder.ForVolumeMount("myvol", "/restores/myvol").Result()).
@@ -195,7 +203,7 @@ func TestResticRestoreActionExecute(t *testing.T) {
 				ObjectMeta(
 					builder.WithAnnotations("snapshot.velero.io/not-used", "")).
 				InitContainers(
-					newResticInitContainerBuilder(initContainerImage(defaultImageBase), "").
+					newResticInitContainerBuilder(defaultResticRestoreHelperImage, "").
 						Resources(&resourceReqs).
 						SecurityContext(&securityContext).
 						VolumeMounts(builder.ForVolumeMount("vol-1", "/restores/vol-1").Result(), builder.ForVolumeMount("vol-2", "/restores/vol-2").Result()).
@@ -239,7 +247,7 @@ func TestResticRestoreActionExecute(t *testing.T) {
 					builder.ForVolume("vol-2").PersistentVolumeClaimSource("pvc-2").Result(),
 				).
 				InitContainers(
-					newResticInitContainerBuilder(initContainerImage(defaultImageBase), "").
+					newResticInitContainerBuilder(defaultResticRestoreHelperImage, "").
 						Resources(&resourceReqs).
 						SecurityContext(&securityContext).
 						VolumeMounts(builder.ForVolumeMount("vol-1", "/restores/vol-1").Result(), builder.ForVolumeMount("vol-2", "/restores/vol-2").Result()).

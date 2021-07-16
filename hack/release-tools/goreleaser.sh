@@ -29,6 +29,11 @@ if [ -z "${RELEASE_NOTES_FILE}" ]; then
     exit 1
 fi
 
+if [ -z "${REGISTRY}" ]; then
+    echo "REGISTRY must be set"
+    exit 1
+fi
+
 GIT_DIRTY=$(git status --porcelain 2> /dev/null)
 if [[ -z "${GIT_DIRTY}" ]]; then
     export GIT_TREE_STATE=clean

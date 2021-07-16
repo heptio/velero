@@ -1,5 +1,5 @@
 /*
-Copyright 2020 the Velero contributors.
+Copyright the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/vmware-tanzu/velero/internal/velero"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd"
@@ -111,7 +112,7 @@ func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
 func NewInstallOptions() *InstallOptions {
 	return &InstallOptions{
 		Namespace:                 velerov1api.DefaultNamespace,
-		Image:                     install.DefaultImage,
+		Image:                     velero.DefaultVeleroImage(),
 		BackupStorageConfig:       flag.NewMap(),
 		VolumeSnapshotConfig:      flag.NewMap(),
 		PodAnnotations:            flag.NewMap(),
