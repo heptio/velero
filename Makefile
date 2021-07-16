@@ -290,12 +290,12 @@ push-build-image:
 	@# this target will push the build-image it assumes you already have docker
 	@# credentials needed to accomplish this.
 	@# Pushing will be skipped if a custom Dockerfile was used to build the image.
-	ifneq "$(origin BUILDER_IMAGE_DOCKERFILE)" "file"
-		@echo "Dockerfile for builder image has been overridden"
-		@echo "Skipping push of custom image"
-	else
-		docker push $(BUILDER_IMAGE)
-	endif
+ifneq "$(origin BUILDER_IMAGE_DOCKERFILE)" "file"
+	@echo "Dockerfile for builder image has been overridden"
+	@echo "Skipping push of custom image"
+else
+	docker push $(BUILDER_IMAGE)
+endif
 
 build-image-hugo:
 	cd site && docker build --pull -t $(HUGO_IMAGE) .
