@@ -32,3 +32,17 @@ the `--cacert` flag to provide a path to the certificate to be trusted.
 ```bash
 velero backup describe my-backup --cacert <PATH_TO_CA_BUNDLE>
 ```
+
+## Error with client certificate with custom S3 server
+
+In case you are using a custom S3-compatible server, you may encounter that the backup fails with an error similar to one below.
+
+```
+rpc error: code = Unknown desc = RequestError: send request failed caused by:
+Get https://minio.com:3000/k8s-backup-bucket?delimiter=%2F&list-type=2&prefix=: remote error: tls: alert(116)
+```
+
+Error 116 represents certificate required as seen here in [error codes](https://datatracker.ietf.org/doc/html/rfc8446#appendix-B.2).
+Velero as a client does not include its certificate while performing SSL handshake with the server.
+From [TLS 1.3 spec](https://tools.ietf.org/html/rfc8446), verifying client certificate is optional on the server.
+You will need to change this setting on the server to make it work.
