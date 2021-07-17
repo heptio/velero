@@ -1,5 +1,5 @@
 /*
-Copyright the Velero contributors.
+Copyright The Velero Contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,6 +34,10 @@ func NewFakeFileSystem() *FakeFileSystem {
 	return &FakeFileSystem{
 		fs: afero.NewMemMapFs(),
 	}
+}
+
+func (fs *FakeFileSystem) Glob(path string) ([]string, error) {
+	return afero.Glob(fs.fs, path)
 }
 
 func (fs *FakeFileSystem) TempDir(dir, prefix string) (string, error) {

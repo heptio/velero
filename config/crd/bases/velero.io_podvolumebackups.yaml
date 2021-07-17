@@ -8,6 +8,38 @@ metadata:
   creationTimestamp: null
   name: podvolumebackups.velero.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.phase
+    description: Pod Volume Backup status such as New/InProgress
+    name: Status
+    type: string
+  - JSONPath: .status.startTimestamp
+    description: Time when this backup was started
+    name: Created
+    type: date
+  - JSONPath: .spec.pod.namespace
+    description: Namespace of the pod containing the volume to be backed up
+    name: Namespace
+    type: string
+  - JSONPath: .spec.pod.name
+    description: Name of the pod containing the volume to be backed up
+    name: Pod
+    type: string
+  - JSONPath: .spec.volume
+    description: Name of the volume to be backed up
+    name: Volume
+    type: string
+  - JSONPath: .spec.repoIdentifier
+    description: Restic repository identifier for this backup
+    name: Restic Repo
+    type: string
+  - JSONPath: .spec.backupStorageLocation
+    description: Name of the Backup Storage Location where this backup should be stored
+    name: Storage Location
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    name: Age
+    type: date
   group: velero.io
   names:
     kind: PodVolumeBackup
@@ -16,6 +48,8 @@ spec:
     singular: podvolumebackup
   preserveUnknownFields: false
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       properties:

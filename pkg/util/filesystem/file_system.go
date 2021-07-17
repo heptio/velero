@@ -1,5 +1,5 @@
 /*
-Copyright the Velero contributors.
+Copyright The Velero Contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 )
 
 // Interface defines methods for interacting with an
@@ -35,6 +36,7 @@ type Interface interface {
 	DirExists(path string) (bool, error)
 	TempFile(dir, prefix string) (NameWriteCloser, error)
 	Stat(path string) (os.FileInfo, error)
+	Glob(path string) ([]string, error)
 }
 
 type NameWriteCloser interface {
@@ -48,6 +50,10 @@ func NewFileSystem() Interface {
 }
 
 type osFileSystem struct{}
+
+func (fs *osFileSystem) Glob(path string) ([]string, error) {
+	return filepath.Glob(path)
+}
 
 func (fs *osFileSystem) TempDir(dir, prefix string) (string, error) {
 	return ioutil.TempDir(dir, prefix)
