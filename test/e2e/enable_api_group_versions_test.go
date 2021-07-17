@@ -68,6 +68,7 @@ var _ = Describe("[APIGroup] Velero tests with various CRD API group versions", 
 				bslPrefix,
 				bslConfig,
 				vslConfig,
+				crdsVersion,
 				"EnableAPIGroupVersions", // TODO: remove when feature flag is removed
 			)
 			Expect(err).NotTo(HaveOccurred())

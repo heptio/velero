@@ -48,6 +48,7 @@ OUTPUT_DIR := _output/$(GOOS)/$(GOARCH)/bin
 GINKGO_FOCUS ?=
 VELERO_CLI ?=$$(pwd)/../../_output/bin/$(GOOS)/$(GOARCH)/velero
 VELERO_IMAGE ?= velero/velero:main
+CRDS_VERSION ?= v1
 VELERO_NAMESPACE ?= velero
 CREDS_FILE ?=
 BSL_BUCKET ?=
@@ -79,6 +80,7 @@ run: ginkgo
 	@$(GINKGO) -v -focus="$(GINKGO_FOCUS)" . -- -velerocli=$(VELERO_CLI) \
 		-velero-image=$(VELERO_IMAGE) \
 		-velero-namespace=$(VELERO_NAMESPACE) \
+		-crds-version=$(CRDS_VERSION) \
 		-credentials-file=$(CREDS_FILE) \
 		-bucket=$(BSL_BUCKET) \
 		-prefix=$(BSL_PREFIX) \

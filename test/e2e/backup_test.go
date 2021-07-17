@@ -60,7 +60,7 @@ func backup_restore_test(useVolumeSnapshots bool) {
 		Expect(err).To(Succeed())
 		if installVelero {
 			Expect(veleroInstall(context.Background(), veleroImage, veleroNamespace, cloudProvider, objectStoreProvider, useVolumeSnapshots,
-				cloudCredentialsFile, bslBucket, bslPrefix, bslConfig, vslConfig, "")).To(Succeed())
+				cloudCredentialsFile, bslBucket, bslPrefix, bslConfig, vslConfig, crdsVersion, "")).To(Succeed())
 		}
 	})
 
