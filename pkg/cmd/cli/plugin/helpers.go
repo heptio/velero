@@ -42,9 +42,11 @@ func veleroDeployment(ctx context.Context, kubeClient kubernetes.Interface, name
 		return nil, err
 	}
 
-	if len(deployList.Items) < 1 {
-		return nil, errors.New("Velero deployment not found")
+	for _, deployment := range deployList.Items {
+		if deployment.Name == "velero" {
+			return &deployment, nil
+		}
 	}
 
-	return &deployList.Items[0], nil
+	return nil, errors.New("Velero deployment not found")
 }
