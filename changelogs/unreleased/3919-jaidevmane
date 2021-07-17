@@ -1,0 +1,1 @@
+Fix -install-velero flag for e2e tests
