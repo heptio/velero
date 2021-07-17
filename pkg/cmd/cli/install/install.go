@@ -279,19 +279,18 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		return errors.Wrap(err, errorMsg)
 	}
 
-	if o.Wait {
-		fmt.Println("Waiting for Velero deployment to be ready.")
-		if _, err = install.DeploymentIsReady(factory, o.Namespace); err != nil {
+	fmt.Println("Waiting for Velero deployment to be ready.")
+	if _, err = install.DeploymentIsReady(factory, o.Namespace); err != nil {
+		return errors.Wrap(err, errorMsg)
+	}
+
+	if o.UseRestic {
+		fmt.Println("Waiting for Velero restic daemonset to be ready.")
+		if _, err = install.DaemonSetIsReady(factory, o.Namespace); err != nil {
 			return errors.Wrap(err, errorMsg)
 		}
-
-		if o.UseRestic {
-			fmt.Println("Waiting for Velero restic daemonset to be ready.")
-			if _, err = install.DaemonSetIsReady(factory, o.Namespace); err != nil {
-				return errors.Wrap(err, errorMsg)
-			}
-		}
 	}
+
 	if o.SecretFile == "" {
 		fmt.Printf("\nNo secret file was specified, no Secret created.\n\n")
 	}
