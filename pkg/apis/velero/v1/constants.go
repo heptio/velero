@@ -46,4 +46,7 @@ const (
 
 	// APIGroupVersionsFeatureFlag is the feature flag string that defines whether or not to handle multiple API Group Versions
 	APIGroupVersionsFeatureFlag = "EnableAPIGroupVersions"
+
+	// HostPathFlag is the feature flag string that defines whether or not HostPath in PV will be backuped
+	HostPathFlag = "EnableHostPath"
 )

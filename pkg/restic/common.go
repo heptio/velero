@@ -29,6 +29,7 @@ import (
 
 	"github.com/vmware-tanzu/velero/internal/credentials"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/features"
 	velerov1listers "github.com/vmware-tanzu/velero/pkg/generated/listers/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/util/filesystem"
@@ -188,9 +189,9 @@ func GetPodVolumesUsingRestic(pod *corev1api.Pod, defaultVolumesToRestic bool) [
 	volsToExclude := getVolumesToExclude(pod)
 	podVolumes := []string{}
 	for _, pv := range pod.Spec.Volumes {
-		// cannot backup hostpath volumes as they are not mounted into /var/lib/kubelet/pods
-		// and therefore not accessible to the restic daemon set.
-		if pv.HostPath != nil {
+		if pv.HostPath != nil && !features.IsEnabled(velerov1api.HostPathFlag) {
+			// cannot backup hostpath volumes as they are not mounted into /var/lib/kubelet/pods
+			// and therefore not accessible to the restic daemon set.
 			continue
 		}
 		// don't backup volumes mounting secrets. Secrets will be backed up separately.

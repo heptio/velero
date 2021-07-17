@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/features"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 )
@@ -153,8 +154,12 @@ func (b *backupper) BackupPodVolumes(backup *velerov1api.Backup, pod *corev1api.
 			continue
 		}
 		if isHostPath {
-			log.Warnf("Volume %s in pod %s/%s is a hostPath volume which is not supported for restic backup, skipping", volumeName, pod.Namespace, pod.Name)
-			continue
+			if features.IsEnabled(velerov1api.HostPathFlag) {
+				log.Infof("Volume %s in pod %s/%s is a hostPath volume and will be backuped if available in the Restic DaemonSet", volumeName, pod.Namespace, pod.Name)
+			} else {
+				log.Warnf("Volume %s in pod %s/%s is a hostPath volume which is not supported for restic backup unless you activate the %s flag, skipping", volumeName, pod.Namespace, pod.Name, velerov1api.HostPathFlag)
+				continue
+			}
 		}
 
 		volumeBackup := newPodVolumeBackup(backup, pod, volume, repo.Spec.ResticIdentifier, pvc)

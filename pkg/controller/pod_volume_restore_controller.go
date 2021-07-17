@@ -41,6 +41,7 @@ import (
 
 	"github.com/vmware-tanzu/velero/internal/credentials"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/features"
 	velerov1client "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/typed/velero/v1"
 	informers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions/velero/v1"
 	listers "github.com/vmware-tanzu/velero/pkg/generated/listers/velero/v1"
@@ -328,8 +329,21 @@ func (c *podVolumeRestoreController) restorePodVolume(req *velerov1api.PodVolume
 	// will look like: /host_pods/<new-pod-uid>/volumes/<volume-plugin-name>/<volume-dir>
 	volumePath, err := singlePathMatch(fmt.Sprintf("/host_pods/%s/volumes/*/%s", string(req.Spec.Pod.UID), volumeDir))
 	if err != nil {
-		return errors.Wrap(err, "error identifying path of volume")
+		if features.IsEnabled(velerov1api.HostPathFlag) {
+			log.Infof("Volume not found in glob /host_pods/%s/volumes/*/%s, trying to consider a hostPath", string(req.Spec.Pod.UID), volumeDir)
+			fileInfo, err := os.Stat(volumeDir)
+			if err != nil {
+				return errors.Wrap(err, "error identifying path of volume as hostPath")
+			}
+			if !fileInfo.IsDir() {
+				return errors.Wrap(err, "error identifying path of volume, hostPath is not a directory")
+			}
+			volumePath = volumeDir
+		} else {
+			return errors.Wrap(err, "error identifying path of volume")
+		}
 	}
+	log.WithField("path", volumePath).Debugf("Found path.")
 
 	credsFile, err := c.credentialsFileStore.Path(restic.RepoKeySelector())
 	if err != nil {

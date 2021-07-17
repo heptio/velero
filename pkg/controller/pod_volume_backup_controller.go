@@ -39,6 +39,7 @@ import (
 
 	"github.com/vmware-tanzu/velero/internal/credentials"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/features"
 	velerov1client "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/typed/velero/v1"
 	informers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions/velero/v1"
 	listers "github.com/vmware-tanzu/velero/pkg/generated/listers/velero/v1"
@@ -214,15 +215,32 @@ func (c *podVolumeBackupController) processBackup(req *velerov1api.PodVolumeBack
 		return c.fail(req, errors.Wrap(err, "error getting volume directory name").Error(), log)
 	}
 
+	log.Infof("Playing with pod %s and volumeDir %s", string(req.Spec.Pod.UID), volumeDir)
 	pathGlob := fmt.Sprintf("/host_pods/%s/volumes/*/%s", string(req.Spec.Pod.UID), volumeDir)
 	log.WithField("pathGlob", pathGlob).Debug("Looking for path matching glob")
 
 	path, err := singlePathMatch(pathGlob)
 	if err != nil {
-		log.WithError(err).Error("Error uniquely identifying volume path")
-		return c.fail(req, errors.Wrap(err, "error getting volume path on host").Error(), log)
+		if features.IsEnabled(velerov1api.HostPathFlag) {
+			log.Infof("Volume not found in glob %s, trying to consider a hostPath", pathGlob)
+			fileInfo, err := os.Stat(volumeDir)
+			if err != nil {
+				log.WithError(err).Error("Error uniquely identifying volume path")
+				return c.fail(req, errors.Wrap(err, "error getting volume path on host").Error(), log)
+			}
+			if !fileInfo.IsDir() {
+				log.WithError(err).Error("Error uniquely identifying volume path")
+				return c.fail(req, errors.Wrap(err, "error volume path is not a directory").Error(), log)
+			}
+			path = volumeDir
+			log.WithField("path", path).Debugf("Found path.")
+		} else {
+			log.WithError(err).Error("Error uniquely identifying volume path")
+			return c.fail(req, errors.Wrap(err, "error getting volume path on host").Error(), log)
+		}
+	} else {
+		log.WithField("path", path).Debugf("Found path matching glob.")
 	}
-	log.WithField("path", path).Debugf("Found path matching glob")
 
 	// temp creds
 	credentialsFile, err := c.credentialsFileStore.Path(restic.RepoKeySelector())

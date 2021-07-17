@@ -329,18 +329,46 @@ Regardless of how volumes are discovered for backup using restic, the process of
 
 ## Limitations
 
-- `hostPath` volumes are not supported. [Local persistent volumes][4] are supported.
+- [Local persistent volumes][4] are supported out of the box, `hostPath` volumes are supported but requires you to add some configuration, see [HostPath support section](#hostpath-support)
 - Those of you familiar with [restic][1] may know that it encrypts all of its data. Velero uses a static,
 common encryption key for all restic repositories it creates. **This means that anyone who has access to your
 bucket can decrypt your restic backup data**. Make sure that you limit access to the restic bucket
 appropriately.
 - An incremental backup chain will be maintained across pod reschedules for PVCs. However, for pod volumes that are *not*
-PVCs, such as `emptyDir` volumes, when a pod is deleted/recreated (for example, by a ReplicaSet/Deployment), the next backup of those
+PVCs, such as `emptyDir`, when a pod is deleted/recreated (for example, by a ReplicaSet/Deployment), the next backup of those
 volumes will be full rather than incremental, because the pod volume's lifecycle is assumed to be defined by its pod.
 - Restic scans each file in a single thread. This means that large files (such as ones storing a database) will take a long time to scan for data deduplication, even if the actual
 difference is small.
 - If you plan to use the Velero restic integration to backup 100GB of data or more, you may need to [customize the resource limits](/docs/main/customize-installation/#customize-resource-requests-and-limits) to make sure backups complete successfully.
 - Velero's restic integration backs up data from volumes by accessing the node's filesystem, on which the pod is running. For this reason, restic integration can only backup volumes that are mounted by a pod and not directly from the PVC.
+
+## HostPath support
+[HostPath volume](https://kubernetes.io/docs/concepts/storage/volumes/#hostpath) and [hostPath backed PersistentVolume](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#types-of-persistent-volumes) are now supported by the Restic integration and requires you to perform some changes:
+1. start Velero and Restic with the `EnableHostPath` flag (`--features=EnableHostPath`)
+2. make sure the hostPath is accessible to the Restic DaemonSet: if your pod has a hostPath defined to `/path/to/my/folder`, you also need to add a volume to the Restic DaemonSet that make `/path/to/my/folder` accessible.
+
+### Restic volumes configuration
+This examples illustrates how to setup Restic volumes to backup and restore PV created using Rancher's [`local-path-provider`](https://github.com/rancher/local-path-provisioner) in a k3s environment (PVs are hostPath backed PVs, created on the node in the `/var/lib/rancher/k3s/storage/` folder). You will need to add a new volume to make the `/var/lib/rancher/k3s/storage/` (named here `k3s-local`) folder accessible to the Restic DaemonSet:
+
+```diff
+        volumeMounts:
+        - mountPath: /host_pods
+          mountPropagation: HostToContainer
+          name: host-pods
++       - mountPath: /var/lib/rancher/k3s/storage
++         mountPropagation: HostToContainer
++         name: k3s-local
+...
+      volumes:
+      - hostPath:
+          path: /var/lib/kubelet/pods
+          type: ""
+        name: host-pods
++     - hostPath:
++         path: /var/lib/rancher/k3s/storage
++         type: ""
++       name: k3s-local
+```
 
 ## Customize Restore Helper Container
 
