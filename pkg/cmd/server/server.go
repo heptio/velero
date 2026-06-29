@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
-	"runtime"
+	goruntime "runtime"
 	"strings"
 	"time"
 
@@ -375,9 +375,9 @@ func (s *server) run() error {
 		buildinfo.Version,
 		buildinfo.GitSHA,
 		buildinfo.GitTreeState,
-		runtime.Version(),
-		runtime.GOOS,
-		runtime.GOARCH,
+		goruntime.Version(),
+		goruntime.GOOS,
+		goruntime.GOARCH,
 	)
 	// Initialize manual backup metrics
 	s.metrics.InitSchedule("")
