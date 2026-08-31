@@ -371,14 +371,7 @@ func (s *server) run() error {
 
 	s.metrics = metrics.NewServerMetrics()
 	s.metrics.RegisterAllMetrics()
-	s.metrics.RegisterBuildInfo(
-		buildinfo.Version,
-		buildinfo.GitSHA,
-		buildinfo.GitTreeState,
-		goruntime.Version(),
-		goruntime.GOOS,
-		goruntime.GOARCH,
-	)
+	registerBuildInfo(s.metrics)
 	// Initialize manual backup metrics
 	s.metrics.InitSchedule("")
 
@@ -1228,4 +1221,15 @@ func markPodVolumeRestoresCancel(ctx context.Context, client ctrlclient.Client, 
 			log.WithField("PVR is mark for cancel due to server restart", pvr.GetName()).Warn(pvr.Status.Message)
 		}
 	}
+}
+
+func registerBuildInfo(m *metrics.ServerMetrics) {
+	m.RegisterBuildInfo(
+		buildinfo.Version,
+		buildinfo.GitSHA,
+		buildinfo.GitTreeState,
+		goruntime.Version(),
+		goruntime.GOOS,
+		goruntime.GOARCH,
+	)
 }
