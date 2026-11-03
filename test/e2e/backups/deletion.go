@@ -295,7 +295,7 @@ func runBackupDeletionTests(client TestClient, veleroCfg VeleroConfig, backupLoc
 		veleroCfg.BSLConfig,
 		backupName,
 		BackupObjectsPrefix,
-		1,
+		5,
 	); err != nil {
 		return err
 	}

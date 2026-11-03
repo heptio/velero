@@ -197,7 +197,7 @@ func (s AWSStorage) IsObjectsInBucket(cloudCredentialsFile, bslBucket, bslPrefix
 			return false, errors.Wrapf(err, "failed to get region for bucket %s", bslBucket)
 		}
 	}
-	if region == "minio" {
+	if region == "minio" || region == "seaweedfs" {
 		s3url = config.Data()["s3Url"]
 		s3Config, err = newAWSConfig(region, "", cloudCredentialsFile, true, "")
 		if err != nil {
@@ -255,7 +255,7 @@ func (s AWSStorage) DeleteObjectsInBucket(cloudCredentialsFile, bslBucket, bslPr
 		}
 	}
 
-	if region == "minio" {
+	if region == "minio" || region == "seaweedfs" {
 		s3url = config.Data()["s3Url"]
 		s3Config, err = newAWSConfig(region, "", cloudCredentialsFile, true, "")
 		if err != nil {
@@ -306,7 +306,7 @@ func (s AWSStorage) IsSnapshotExisted(cloudCredentialsFile, bslConfig, backupObj
 	config.Set(bslConfig)
 	region := config.Data()["region"]
 
-	if region == "minio" {
+	if region == "minio" || region == "seaweedfs" {
 		return errors.New("No snapshot for Minio provider")
 	}
 
@@ -439,7 +439,7 @@ func (s AWSStorage) GetObject(cloudCredentialsFile, bslBucket, bslPrefix, bslCon
 			return nil, errors.Wrapf(err, "failed to get region for bucket %s", bslBucket)
 		}
 	}
-	if region == "minio" {
+	if region == "minio" || region == "seaweedfs" {
 		s3url = config.Data()["s3Url"]
 		s3Config, err = newAWSConfig(region, "", cloudCredentialsFile, true, "")
 		if err != nil {
