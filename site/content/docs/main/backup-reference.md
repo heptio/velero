@@ -33,7 +33,7 @@ When either flag is omitted or set to `0`, its uploader defaults to `runtime.GOM
 
 Both settings apply per volume uploader, not across the entire backup. They do not control the number of concurrent data mover pods; use [node-agent concurrency configuration](node-agent-concurrency.md) for that. They affect backups only. File restore concurrency is configured separately with `--parallel-files-download`; neither upload flag changes block restore behavior.
 
-Higher concurrency can improve throughput when CPU, disk, and backup storage can keep up, but also increases buffered data and memory usage. Slow storage can leave more packs buffered while uploads finish. Lower concurrency can reduce this memory pressure. Neither setting guarantees a total pod memory limit, and a larger value does not always improve throughput.
+Higher concurrency can improve throughput when CPU, disk, and backup storage can keep up, but also increases buffered data and memory usage. Slow storage can leave more packs buffered while uploads finish. Lower concurrency can reduce this memory pressure. Neither setting guarantees a total pod memory limit, and a larger value does not always improve throughput. See [Memory usage and upload concurrency](data-movement-pod-resource-configuration.md#memory-usage-and-upload-concurrency) for tuning guidance.
 
 The flags are also available on `velero schedule create`. For a backup or schedule that uses both data movers, set both flags; each mover uses its corresponding setting:
 

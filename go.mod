@@ -222,6 +222,6 @@ require (
 )
 
 replace (
-	github.com/kopia/kopia => github.com/project-velero/kopia v0.0.0-20260616052725-d83462d382c9
+	github.com/kopia/kopia => github.com/velero-io/kopia v0.0.0-20260616052725-d83462d382c9
 	github.com/velero-io/velero/pkg/apis => ./pkg/apis
 )
