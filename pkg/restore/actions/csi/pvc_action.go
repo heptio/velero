@@ -246,7 +246,7 @@ func (p *pvcRestoreItemAction) executeWithDataMove(logger *logrus.Entry, input *
 	cleanUpVolumeSnapshot := false
 	if pvcExists {
 		// Pre-flight checks must pass before any side effect on the existing PVC/PV.
-		if err := inplace.CheckPVCBoundToBackedUpVolume(ctx, p.crClient, existingPVC, pvcFromBackup.Spec.VolumeName, pvc.Annotations[velerov1api.InplaceRestoreVolumeHandleAnnotation], pvcFromBackup.Namespace); err != nil {
+		if err := inplace.CheckPVCBoundToBackedUpVolume(ctx, p.crClient, existingPVC, pvcFromBackup.Spec.VolumeName, pvc.Annotations[velerov1api.InplaceRestoreVolumeHandleAnnotation], pvcFromBackup.Namespace, input.Restore.AllowExistingVolumeMismatch(), logger); err != nil {
 			return nil, errors.WithStack(err)
 		}
 		if err := inplace.CheckPVCCapacity(existingPVC, sourceSizeFromCarrier(pvc)); err != nil {

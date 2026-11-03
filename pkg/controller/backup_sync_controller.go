@@ -38,6 +38,7 @@ import (
 	"github.com/velero-io/velero/pkg/label"
 	"github.com/velero-io/velero/pkg/persistence"
 	"github.com/velero-io/velero/pkg/plugin/clientmgmt"
+	"github.com/velero-io/velero/pkg/podvolume"
 	"github.com/velero-io/velero/pkg/util/kube"
 	veleroutil "github.com/velero-io/velero/pkg/util/velero"
 
@@ -189,6 +190,18 @@ func (b *backupSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			continue
 		}
 
+		// process the pod volume backups from object store, if any
+		podVolumeBackups, err := backupStore.GetPodVolumeBackups(backupName)
+		if err != nil {
+			log.WithError(errors.WithStack(err)).Error("Error getting pod volume backups for this backup from backup store")
+			continue
+		}
+
+		if err := podvolume.ValidateUploaders(podVolumeBackups); err != nil {
+			log.WithError(err).Debug("Skipping backup on PVB uploader validation failure")
+			continue
+		}
+
 		// A synced backup is a record of a backup that already ran somewhere else, not
 		// a backup to run here. Hooks are only read while a backup is being executed,
 		// so they have no consumer for a synced backup and are dropped rather than
@@ -223,16 +236,18 @@ func (b *backupSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			log.Info("Successfully synced backup into cluster")
 		}
 
-		// process the pod volume backups from object store, if any
-		podVolumeBackups, err := backupStore.GetPodVolumeBackups(backupName)
-		if err != nil {
-			log.WithError(errors.WithStack(err)).Error("Error getting pod volume backups for this backup from backup store")
-			continue
-		}
-
 		for _, podVolumeBackup := range podVolumeBackups {
 			log := log.WithField("podVolumeBackup", podVolumeBackup.Name)
 			log.Debug("Checking this pod volume backup to see if it needs to be synced into the cluster")
+
+			switch podVolumeBackup.Status.Phase {
+			case velerov1api.PodVolumeBackupPhaseCompleted,
+				velerov1api.PodVolumeBackupPhaseFailed,
+				velerov1api.PodVolumeBackupPhaseCanceled:
+			default:
+				log.Infof("Skipping pod volume backup %v, phase %q in the backup store is not a phase that can be synced", podVolumeBackup.Name, podVolumeBackup.Status.Phase)
+				continue
+			}
 
 			for i, ownerRef := range podVolumeBackup.OwnerReferences {
 				if ownerRef.APIVersion == velerov1api.SchemeGroupVersion.String() && ownerRef.Kind == "Backup" && ownerRef.Name == backup.Name {

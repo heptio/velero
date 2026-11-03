@@ -1,0 +1,1 @@
+Revert #9943: include pkg/apis in the root Velero Go module again.

@@ -194,7 +194,7 @@ func (r *restorer) RestorePodVolumes(data RestoreData, tracker *volume.RestoreVo
 			if info := data.BackupVolumeInfos[pvName].PVInfo; info != nil {
 				volumeHandle = info.VolumeHandle
 			}
-			if err := inplace.CheckPVCBoundToBackedUpVolume(r.ctx, r.crClient, pvc, pvName, volumeHandle, data.SourceNamespace); err != nil {
+			if err := inplace.CheckPVCBoundToBackedUpVolume(r.ctx, r.crClient, pvc, pvName, volumeHandle, data.SourceNamespace, data.Restore.AllowExistingVolumeMismatch(), r.log); err != nil {
 				errs = append(errs, err)
 				continue
 			}

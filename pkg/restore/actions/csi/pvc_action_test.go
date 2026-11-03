@@ -843,14 +843,15 @@ func TestExecuteInplaceRestorePreflight(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		pod              *corev1api.Pod
-		backedUpPVName   string
-		backedUpHandle   string // carried on the PVC item by the restore engine
-		existingPVHandle string // CSI volume handle of the PV bound to the existing PVC
-		sourceSize       string // carried on the PVC item by the restore engine
-		pvcCapacity      string
-		expectBlock      string
+		name                        string
+		pod                         *corev1api.Pod
+		backedUpPVName              string
+		backedUpHandle              string // carried on the PVC item by the restore engine
+		existingPVHandle            string // CSI volume handle of the PV bound to the existing PVC
+		sourceSize                  string // carried on the PVC item by the restore engine
+		pvcCapacity                 string
+		allowExistingVolumeMismatch bool
+		expectBlock                 string
 	}{
 		{
 			name:           "checks pass, restore proceeds",
@@ -868,6 +869,11 @@ func TestExecuteInplaceRestorePreflight(t *testing.T) {
 			expectBlock:    "was bound to PV backupPV at backup time",
 		},
 		{
+			name:                        "PVC bound to a different PV with allowExistingVolumeMismatch proceeds",
+			backedUpPVName:              "backupPV",
+			allowExistingVolumeMismatch: true,
+		},
+		{
 			// The PV was recreated under a new name by a previous in-place
 			// restore (block data mover on a file system volume) but is the
 			// same CSI volume.
@@ -882,6 +888,13 @@ func TestExecuteInplaceRestorePreflight(t *testing.T) {
 			backedUpHandle:   "vol-1",
 			existingPVHandle: "vol-other",
 			expectBlock:      "is bound to volume vol-other (PV testPV), but was bound to volume vol-1 (PV testPV) at backup time",
+		},
+		{
+			name:                        "PVC bound to a different CSI volume under the same PV name with allowExistingVolumeMismatch proceeds",
+			backedUpPVName:              "testPV",
+			backedUpHandle:              "vol-1",
+			existingPVHandle:            "vol-other",
+			allowExistingVolumeMismatch: true,
 		},
 		{
 			// Backed-up PV unknown so the same-volume skip does not apply.
@@ -909,8 +922,12 @@ func TestExecuteInplaceRestorePreflight(t *testing.T) {
 				existingPV.Spec.CSI = &corev1api.CSIPersistentVolumeSource{Driver: "fake.csi", VolumeHandle: tc.existingPVHandle}
 			}
 			backup := builder.ForBackup("velero", "testBackup").SnapshotMoveData(true).Result()
-			restore := builder.ForRestore("velero", "testRestore").Backup("testBackup").
-				ObjectMeta(builder.WithUID("uid")).ExistingVolumeDataPolicy("full").Result()
+			restoreBuilder := builder.ForRestore("velero", "testRestore").Backup("testBackup").
+				ObjectMeta(builder.WithUID("uid")).ExistingVolumeDataPolicy("full")
+			if tc.allowExistingVolumeMismatch {
+				restoreBuilder.AllowExistingVolumeMismatch(true)
+			}
+			restore := restoreBuilder.Result()
 			pvcFromBackup := builder.ForPersistentVolumeClaim("velero", "testPVC").
 				VolumeName(tc.backedUpPVName).
 				ObjectMeta(builder.WithAnnotations(

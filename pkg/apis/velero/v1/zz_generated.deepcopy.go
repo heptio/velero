@@ -1436,6 +1436,11 @@ func (in *RestoreSpec) DeepCopyInto(out *RestoreSpec) {
 		**out = **in
 	}
 	in.Hooks.DeepCopyInto(&out.Hooks)
+	if in.AllowExistingVolumeMismatch != nil {
+		in, out := &in.AllowExistingVolumeMismatch, &out.AllowExistingVolumeMismatch
+		*out = new(bool)
+		**out = **in
+	}
 	out.CSISnapshotTimeout = in.CSISnapshotTimeout
 	out.ItemOperationTimeout = in.ItemOperationTimeout
 	if in.ResourceModifier != nil {

@@ -123,11 +123,12 @@ flowchart TD
 To support the new in-place restore policies and incremental data transfer, several Custom Resource Definitions (CRDs) will be updated.
 
 **Restore CRD**  
-A new field `existingVolumeDataPolicy` is added to the `Restore` spec to allow users to define how existing volume data should be handled. Additionally, a new field `deleteExtraFiles` is added to the `uploaderConfig` to control file deletion during file system restores.
+A new field `existingVolumeDataPolicy` is added to the `Restore` spec to allow users to define how existing volume data should be handled. Additionally, an optional boolean flag `allowExistingVolumeMismatch` is added to bypass volume mismatch pre-flight checks, and a new field `deleteExtraFiles` is added to the `uploaderConfig` to control file deletion during file system restores.
 
 ```yaml
 spec:
   existingVolumeDataPolicy: "" # Valid values: "", none, full, incremental
+  allowExistingVolumeMismatch: false
   uploaderConfig:
     deleteExtraFiles: false
 ```
@@ -136,6 +137,7 @@ spec:
   - `""` (default) or `none`: Do not restore volume data if the target PVC already exists.
   - `full`: Perform an in-place full restore, overwriting all existing data on the volume.
   - `incremental`: Perform an in-place incremental restore, only overwriting data that has changed since the backup.
+- `allowExistingVolumeMismatch`: A boolean flag (defaults to `false`) indicating whether to allow in-place restore when the existing PVC is bound to a different volume handle than at backup time. When set to `true`, Velero will only log a warning and not fail the restore if the volume handle does not match (e.g., when the workload was reverted from a temporary snapshot backup after a failed restore).
 - `uploaderConfig.deleteExtraFiles`: A boolean flag that controls whether files present in the target volume but absent from the backup should be deleted. **Note:** This setting is *only* applicable to File System restores (PodVolumeBackup or CSI File System Data Move) and has no effect on Block Data Move restores. Furthermore, it is ignored for non-in-place restores (where `existingVolumeDataPolicy` is not set to `full` or `incremental`).
 
 If the target PVC does not exist, Velero will fall back to its default behavior and provision a new PVC for the restore, regardless of whether `existingVolumeDataPolicy` is set to `full` or `incremental`. Furthermore, if `existingVolumeDataPolicy` is set to `incremental` but the underlying storage does not support incremental restores, Velero will automatically fall back to a `full` restore.
@@ -186,6 +188,7 @@ spec:
 New flags will be added to the `velero restore create` command to support the new policy:
 
 - `--existing-volume-data-policy`: Accepts the values `none`, `full`, or `incremental`, mapping to `existingVolumeDataPolicy`.
+- `--allow-existing-volume-mismatch`: A boolean flag mapping to `allowExistingVolumeMismatch`.
 - `--delete-extra-files`: A boolean flag mapping to `uploaderConfig.deleteExtraFiles`.
 
 ### Workload Management
@@ -249,9 +252,11 @@ Similarly, when a volume backed up by a snapshot already exists and is left unto
 This check is a fail-fast validation, not an atomic guarantee; the `pvc-protection` finalizer remains the actual safety gate for PVC deletion. A residual `VolumeAttachment` check (e.g. a `Failed` Pod imposed by the control plane after a non-graceful node shutdown, where the node never unmounted the volume) may be added as a future enhancement.
 
 #### 2. PVC is Bound to the Original PV
-Velero checks whether the existing PVC in the cluster is still bound to the same PersistentVolume (PV) it was bound to at the time of the backup (compared by PV name against the backed-up PVC's `spec.volumeName`). If the PVC is bound to a different PV, performing an in-place restore (especially an incremental one that relies on Changed Block Tracking) may be unsafe or result in unpredictable behavior. If this check fails, Velero will log an error and skip the in-place restore for that volume.
+Velero checks whether the existing PVC in the cluster is still bound to the same volume it was bound to at the time of the backup (compared by CSI volume handle when recorded). If the PVC is bound to a different volume handle, performing an in-place restore (especially an incremental one that relies on Changed Block Tracking) may be unsafe or result in unpredictable behavior. If this check fails, Velero will log an error and skip the in-place restore for that volume.
 
-The PV comparison is skipped when the PVC is restored into a mapped namespace, where the target PVC is necessarily bound to a different PV (see [Namespace Mapping](#namespace-mapping) for the cross-namespace clone-and-restore workflow). The PVC must still be bound in all cases.
+When `allowExistingVolumeMismatch` is set to `true` (or via `--allow-existing-volume-mismatch`), Velero will only log a warning and not fail the restore when a volume handle mismatch is detected, allowing users to explicitly authorize restoring onto a recreated or reverted volume with a different handle or PV name.
+
+The PV comparison is also skipped when the PVC is restored into a mapped namespace, where the target PVC is necessarily bound to a different PV (see [Namespace Mapping](#namespace-mapping) for the cross-namespace clone-and-restore workflow). The PVC must still be bound in all cases.
 
 The check runs on both restore paths: in the PVC CSI RIA (using the backed-up PVC's volume name), and before creating the `PodVolumeRestore` on the file system path (using the PVC-to-PV mapping recorded in the backup's volume info).
 
@@ -267,6 +272,8 @@ Before initiating an in-place restore, Velero compares the existing PV's size (`
 It is highly recommended that users create a backup (e.g., a CSI snapshot backup without data movement, if possible) before initiating an in-place restore. This ensures that the original state can be recovered in the event of a restore failure.
 
 If an in-place restore fails, Velero will intentionally leave certain temporary resources intact, such as the temporary PVC bound to the existing PV. Velero does not automatically clean up these resources because doing so could inadvertently trigger the deletion of the underlying storage volume. In such failure scenarios, users must manually clean up these temporary resources and, if necessary, use their pre-restore backup to recover the system's state.
+
+Note that when reverting the workload from the pre-restore snapshot backup, a new volume with a new CSI volume handle will be created by Kubernetes CSI. When retrying the in-place restore afterwards, users can specify `--allow-existing-volume-mismatch` (`allowExistingVolumeMismatch: true`) so that Velero only logs a warning instead of failing the pre-flight check when the volume handle has changed.
 
 ### Restore Workflow Update
 

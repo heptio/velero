@@ -108,6 +108,12 @@ func (b *RestoreBuilder) ExistingVolumeDataPolicy(policy string) *RestoreBuilder
 	return b
 }
 
+// AllowExistingVolumeMismatch sets the Restore's allowExistingVolumeMismatch flag.
+func (b *RestoreBuilder) AllowExistingVolumeMismatch(val bool) *RestoreBuilder {
+	b.object.Spec.AllowExistingVolumeMismatch = &val
+	return b
+}
+
 // IncludeClusterResources sets the Restore's "include cluster resources" flag.
 func (b *RestoreBuilder) IncludeClusterResources(val bool) *RestoreBuilder {
 	b.object.Spec.IncludeClusterResources = &val

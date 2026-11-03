@@ -7,8 +7,8 @@ env:
   # Bump them deliberately after reviewing the upstream changes.
   # bitnami/containers: [bitnami/minio] Release 2026.7.17-debian-12-r0
   BITNAMI_CONTAINERS_COMMIT: 19fb570e551f15ab0c8264aafa93774266761b8d
-  # vmware-tanzu-experiments/distributed-data-generator: main as of 2025-07-15
-  KIBISHII_COMMIT: bce0469e5f9dd33f31432fab22ff90ad6f2b45ca
+  # vmware-tanzu-experiments/distributed-data-generator: main as of 2026-10-15
+  KIBISHII_COMMIT: f81fc67f52b9cafe945f7d44ca0507ff65ea4cbd
 on:
   push:
   pull_request:
@@ -37,6 +37,24 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ needs.get-go-version.outputs.version }}
+          cache: false
+
+      # One Go module cache for this job and the e2e jobs. The key leaves out the
+      # Go patch version, which differs between runner images in the same run.
+      - name: Restore Go module cache
+        id: go-mod-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
+          restore-keys: go-mod-${{ runner.os }}-${{ runner.arch }}-
+      # Download everything the e2e jobs need, including the ginkgo CLI's own
+      # dependencies, so they can run from the cache.
+      - name: Download Go modules
+        if: steps.go-mod-cache.outputs.cache-hit != 'true'
+        run: |
+          go mod download
+          make -C test/ ginkgo
 
       # Look for a CLI that's made for this PR
       - name: Fetch built CLI
@@ -106,6 +124,12 @@ jobs:
         with:
           path: ./minio-image.tar
           key: minio-bitnami-${{ env.BITNAMI_CONTAINERS_COMMIT }}
+      - name: Save Go module cache
+        if: steps.go-mod-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ steps.go-mod-cache.outputs.cache-primary-key }}
   # Create json of k8s versions to test
   # from guide: https://stackoverflow.com/a/65094398/4590470
   setup-test-matrix:
@@ -179,10 +203,19 @@ jobs:
           # bare token by exact equality, not as a substring, so CSISnapshot does
           # not select CSIVolumeGroupSnapshot. A new CSI label has to be added
           # here or its cases silently never run.
+          #
+          # The Kibishii-backed Snapshot cases run here rather than in
+          # run-e2e-test because Kibishii brings its own StorageClass, and only
+          # the kind-csi overlay this job reaches defines it on a CSI driver.
           echo "csi-matrix={\
             \"k8s\":${csi_k8s_json},\
             \"labels\":[\
-              \"BackupVolumeInfo && (CSISnapshot || CSIDataMover || CSIVolumeGroupSnapshot)\"\
+              \"BackupVolumeInfo && (CSISnapshot || CSIDataMover || CSIVolumeGroupSnapshot)\", \
+              \"Basic && Snapshot\", \
+              \"Backups && Deletion && Snapshot\", \
+              \"NamespaceMapping && Snapshot\", \
+              \"Basic && FSBackup\", \
+              \"BSL && Deletion && Snapshot\"\
             ]}" >> $GITHUB_OUTPUT
 
   # Run E2E test against all Kubernetes versions on kind
@@ -203,6 +236,13 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ needs.get-go-version.outputs.version }}
+          cache: false
+      - name: Restore Go module cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
+          restore-keys: go-mod-${{ runner.os }}-${{ runner.arch }}-
 
       # Fetch the pre-built MinIO image from the build job
       - name: Fetch built MinIO Image
@@ -298,6 +338,13 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ needs.get-go-version.outputs.version }}
+          cache: false
+      - name: Restore Go module cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
+          restore-keys: go-mod-${{ runner.os }}-${{ runner.arch }}-
 
       # Fetch the pre-built MinIO image from the build job
       - name: Fetch built MinIO Image
@@ -351,7 +398,11 @@ jobs:
           aws_secret_access_key=minio123
           EOF
 
-          # No Kibishii clone: none of the CSI cases this job selects use it.
+          git init -q /tmp/kibishii
+          git -C /tmp/kibishii remote add origin https://github.com/vmware-tanzu-experiments/distributed-data-generator.git
+          git -C /tmp/kibishii fetch --depth 1 origin "${KIBISHII_COMMIT}"
+          git -C /tmp/kibishii checkout -q "${KIBISHII_COMMIT}"
+
           GOPATH=~/go \
               CLOUD_PROVIDER=kind \
               OBJECT_STORE_PROVIDER=aws \
@@ -367,6 +418,7 @@ jobs:
               PLUGINS=velero/velero-plugin-for-aws:latest \
               STORAGE_CLASS_FILE=../testdata/storage-class/kind-csi.yaml \
               GINKGO_LABELS="${{ matrix.labels }}" \
+              KIBISHII_DIRECTORY=/tmp/kibishii/kubernetes/yaml/ \
               make -C test/ run-e2e
         timeout-minutes: 30
       - name: Upload debug bundle
