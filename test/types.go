@@ -155,7 +155,6 @@ type VeleroConfig struct {
 	VeleroServerDebugMode             bool
 	SnapshotMoveData                  bool
 	DataMover                         string
-	DataMoverPlugin                   string
 	StandbyClusterCloudProvider       string
 	StandbyClusterPlugins             string
 	StandbyClusterObjectStoreProvider string

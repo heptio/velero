@@ -73,7 +73,6 @@ These configuration parameters are expected as values to the following command l
 1. `--uploader-type`: Type of uploader for persistent volume backup.
 1. `--snapshot-move-data`: Enable snapshot data movement for backups.
 1. `--data-mover`: Data mover name for snapshot data movement. Empty or `velero` selects the built-in data mover. Custom movers must be installed separately.
-1. `--data-mover-plugin`: Customized plugin for data mover.
 1. `--standby-cluster-cloud-provider`: Cloud provider for standby cluster.
 1. `--standby-cluster-plugins`: Plugins provider for standby cluster.
 1. `--standby-cluster-object-store-provider`: Object store provider for standby cluster.
@@ -127,7 +126,6 @@ Below is a mapping between `make` variables to E2E configuration flags.
 1. `UPLOADER_TYPE`: `-uploader-type`. Optional.
 1. `SNAPSHOT_MOVE_DATA`: `-snapshot-move-data`. Optional.
 1. `DATA_MOVER`: `--data-mover`. Optional; used by snapshot data movement backups and does not enable `SNAPSHOT_MOVE_DATA` automatically.
-1. `DATA_MOVER_PLUGIN`: `-data-mover-plugin`. Optional.
 1. `STANDBY_CLUSTER_CLOUD_PROVIDER`: `-standby-cluster-cloud-provider`. Optional.
 1. `STANDBY_CLUSTER_PLUGINS`: `-standby-cluster-plugins`. Optional.
 1. `STANDBY_CLUSTER_OBJECT_STORE_PROVIDER`: `-standby-cluster-object-store-provider`. Optional.
