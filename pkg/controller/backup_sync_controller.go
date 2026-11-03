@@ -234,6 +234,15 @@ func (b *backupSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			log := log.WithField("podVolumeBackup", podVolumeBackup.Name)
 			log.Debug("Checking this pod volume backup to see if it needs to be synced into the cluster")
 
+			switch podVolumeBackup.Status.Phase {
+			case velerov1api.PodVolumeBackupPhaseCompleted,
+				velerov1api.PodVolumeBackupPhaseFailed,
+				velerov1api.PodVolumeBackupPhaseCanceled:
+			default:
+				log.Infof("Skipping pod volume backup %v, phase %q in the backup store is not a phase that can be synced", podVolumeBackup.Name, podVolumeBackup.Status.Phase)
+				continue
+			}
+
 			for i, ownerRef := range podVolumeBackup.OwnerReferences {
 				if ownerRef.APIVersion == velerov1api.SchemeGroupVersion.String() && ownerRef.Kind == "Backup" && ownerRef.Name == backup.Name {
 					log.WithField("uid", backup.UID).Debugf("Updating pod volume backup's owner reference UID")
