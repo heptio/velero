@@ -267,7 +267,13 @@ func init() {
 		&test.VeleroCfg.SnapshotMoveData,
 		"snapshot-move-data",
 		false,
-		"a Switch for taking backup with Velero's data mover, if data-mover-plugin is not provided, using built-in plugin",
+		"enable snapshot data movement for backups",
+	)
+	flag.StringVar(
+		&test.VeleroCfg.DataMover,
+		"data-mover",
+		"",
+		"data mover name for snapshot data movement; empty or velero uses the built-in data mover.",
 	)
 	flag.StringVar(
 		&test.VeleroCfg.DataMoverPlugin,

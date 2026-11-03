@@ -70,6 +70,10 @@ func (v *BackupVolumeInfo) Init() error {
 		"--wait",
 	}
 
+	if v.SnapshotMoveData && v.VeleroCfg.DataMover != "" {
+		v.BackupArgs = append(v.BackupArgs, "--data-mover", v.VeleroCfg.DataMover)
+	}
+
 	v.RestoreArgs = []string{
 		"create", "--namespace", v.VeleroCfg.VeleroNamespace, "restore", v.RestoreName,
 		"--from-backup", v.BackupName, "--wait",

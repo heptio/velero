@@ -463,6 +463,9 @@ func VeleroBackupNamespace(ctx context.Context, veleroCLI, veleroNamespace strin
 
 	if backupCfg.SnapshotMoveData {
 		args = append(args, "--snapshot-move-data")
+		if backupCfg.DataMover != "" {
+			args = append(args, "--data-mover", backupCfg.DataMover)
+		}
 	}
 
 	if backupCfg.UseVolumeSnapshots {
