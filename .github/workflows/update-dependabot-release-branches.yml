@@ -57,7 +57,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git checkout -B "${BRANCH}"
-            git commit -s -am "Update Dependabot release branches"
+            git commit -s -m "Update Dependabot release branches" -- .github/dependabot.yml
             git push --force origin "${BRANCH}"
 
             if [[ -n "${open_pr}" ]]; then
