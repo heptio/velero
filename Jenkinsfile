@@ -23,7 +23,7 @@ properties([
         ),
         booleanParam(
             name: "SKIP_PREPARE_DEPLOYMENT_REPO",
-            defaultValue: true,
+            defaultValue: false,
             description: "Skip the Prepare deployment repo stage"
         ),
         booleanParam(
