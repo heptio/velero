@@ -1,1 +1,0 @@
-Move internal/resourcemodifiers to pkg/resourcemodifiers for plugin reuse

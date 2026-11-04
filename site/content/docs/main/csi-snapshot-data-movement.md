@@ -677,7 +677,7 @@ Sometimes, `RestorePVC` needs to be configured to increase the performance of re
 [21]: data-movement-cache-volume.md
 [22]: https://tip.golang.org/doc/go1.25#container-aware-gomaxprocs:~:text=Runtime%C2%B6-,Container%2Daware%20GOMAXPROCS,-%C2%B6
 [23]: https://kubernetes.io/blog/2025/09/25/csi-changed-block-tracking/
-[24]: https://github.com/velero-io/velero/blob/main/design/block-data-mover/block-data-mover.md
+[24]: https://github.com/velero-io/velero/blob/main/design/Implemented/block-data-mover/block-data-mover.md
 [25]: supported-configmaps/node-agent-configmap.md
 [26]: resource-filtering.md
 
