@@ -1243,3 +1243,28 @@ func TestIsTarballNotFoundError(t *testing.T) {
 		})
 	}
 }
+
+func TestDeletionRejectsUnsupportedUploaderBeforeMutation(t *testing.T) {
+	for _, uploaderType := range []string{"unsupported", "restic", ""} {
+		t.Run(fmt.Sprintf("uploader=%q", uploaderType), func(t *testing.T) {
+			dbr := defaultTestDbr()
+			backup := builder.ForBackup(dbr.Namespace, dbr.Spec.BackupName).
+				StorageLocation("location-1").Phase(velerov1api.BackupPhaseCompleted).Result()
+			pvb := builder.ForPodVolumeBackup(dbr.Namespace, "pvb").
+				UploaderType(uploaderType).
+				ObjectMeta(builder.WithLabels(velerov1api.BackupNameLabel, backup.Name)).Result()
+			td := setupBackupDeletionControllerTest(t, dbr, backup, defaultLocation(dbr.Namespace), pvb)
+
+			_, err := td.controller.Reconcile(t.Context(), td.req)
+			require.NoError(t, err)
+			require.NoError(t, td.fakeClient.Get(t.Context(), client.ObjectKeyFromObject(dbr), dbr))
+			require.Equal(t, velerov1api.DeleteBackupRequestPhaseProcessed, dbr.Status.Phase)
+			require.Len(t, dbr.Status.Errors, 1)
+			require.Contains(t, dbr.Status.Errors[0], "invalid uploader type")
+			require.NoError(t, td.fakeClient.Get(t.Context(), client.ObjectKeyFromObject(backup), backup))
+			require.Equal(t, velerov1api.BackupPhaseCompleted, backup.Status.Phase)
+			require.NoError(t, td.fakeClient.Get(t.Context(), client.ObjectKeyFromObject(pvb), pvb))
+			require.Empty(t, td.backupStore.Calls)
+		})
+	}
+}

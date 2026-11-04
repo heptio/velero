@@ -562,7 +562,7 @@ For each individual volume, backup parallelism is controlled by the data mover:
 - **File System Data Mover**: `--parallel-files-upload` controls how many files are processed concurrently.
 - **Block Data Mover**: `--parallel-blocks-upload` controls how many block writes are processed concurrently.
 
-Both backup flags default to `runtime.GOMAXPROCS(0)` in the data mover process when omitted or set to `0`. The Go runtime can take the pod CPU limit into account when selecting this value (see [Container-aware GOMAXPROCS][22]). Explicit positive values override the default. Higher concurrency can improve throughput but increases buffered data and memory usage, particularly when backup storage is slow. These settings apply per volume and do not change node-agent load concurrency. See [backup upload concurrency](backup-reference.md#parallel-files-upload) for examples and Backup/Schedule configuration.  
+Both backup flags default to `runtime.GOMAXPROCS(0)` in the data mover process when omitted or set to `0`. The Go runtime can take the pod CPU limit into account when selecting this value (see [Container-aware GOMAXPROCS][22]). Explicit positive values override the default. Higher concurrency can improve throughput but increases buffered data and memory usage, particularly when backup storage is slow. These settings apply per volume and do not change node-agent load concurrency. See [backup upload concurrency](backup-reference.md#parallel-files-upload) for examples and Backup/Schedule configuration, and [Memory usage and upload concurrency](data-movement-pod-resource-configuration.md#memory-usage-and-upload-concurrency) for tuning guidance.  
 
 For restore, the file system data mover uses `--parallel-files-download`, which defaults to `runtime.GOMAXPROCS(0)` in the data mover process when omitted or set to `0`. An explicit positive value overrides this default. The upload flags do not affect restore.  
 
@@ -677,7 +677,7 @@ Sometimes, `RestorePVC` needs to be configured to increase the performance of re
 [21]: data-movement-cache-volume.md
 [22]: https://tip.golang.org/doc/go1.25#container-aware-gomaxprocs:~:text=Runtime%C2%B6-,Container%2Daware%20GOMAXPROCS,-%C2%B6
 [23]: https://kubernetes.io/blog/2025/09/25/csi-changed-block-tracking/
-[24]: https://github.com/velero-io/velero/blob/main/design/block-data-mover/block-data-mover.md
+[24]: https://github.com/velero-io/velero/blob/main/design/Implemented/block-data-mover/block-data-mover.md
 [25]: supported-configmaps/node-agent-configmap.md
 [26]: resource-filtering.md
 

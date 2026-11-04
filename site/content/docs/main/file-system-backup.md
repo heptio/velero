@@ -733,7 +733,7 @@ By the meantime, one data mover pod is created for each volume to be backed up/r
 
 For each volume, files are processed in parallel. Set `--parallel-files-upload` to a positive integer to choose the number of concurrent file uploads. When omitted or set to `0`, the default is `runtime.GOMAXPROCS(0)` in the data mover process when backup processing starts. The Go runtime can take the pod CPU limit into account when selecting this value (see [Container-aware GOMAXPROCS][23]). An explicit positive value overrides this default.  
 
-Higher upload concurrency can improve throughput but increases buffering and memory usage, especially when backup storage is slow. The setting applies independently to each volume uploader; it does not change the number of concurrent data mover pods. See [backup upload concurrency](backup-reference.md#parallel-files-upload) for usage examples and schedule configuration.  
+Higher upload concurrency can improve throughput but increases buffering and memory usage, especially when backup storage is slow. The setting applies independently to each volume uploader; it does not change the number of concurrent data mover pods. See [backup upload concurrency](backup-reference.md#parallel-files-upload) for usage examples and schedule configuration, and [Memory usage and upload concurrency](data-movement-pod-resource-configuration.md#memory-usage-and-upload-concurrency) for tuning guidance.  
 
 For restores, use `--parallel-files-download` to control parallel file processing. When omitted or set to `0`, it defaults to `runtime.GOMAXPROCS(0)` in the data mover process. An explicit positive value overrides this default. The upload settings do not affect restore concurrency.  
 
