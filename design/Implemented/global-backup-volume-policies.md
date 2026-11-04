@@ -2,7 +2,7 @@
 
 ## Background
 
-Velero supports [resource policies](./Implemented/handle-backup-of-volumes-by-resources-filters.md) (commonly referred to as "volume policies") that let a user control how volumes are handled during a backup — for example, whether a volume is skipped, backed up via file-system backup (`fs-backup`), snapshotted, or handled by a custom plugin.
+Velero supports [resource policies](./handle-backup-of-volumes-by-resources-filters.md) (commonly referred to as "volume policies") that let a user control how volumes are handled during a backup — for example, whether a volume is skipped, backed up via file-system backup (`fs-backup`), snapshotted, or handled by a custom plugin.
 
 Today these policies are defined per-backup:
 

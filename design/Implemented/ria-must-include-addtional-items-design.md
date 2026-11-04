@@ -12,7 +12,7 @@ This proposal adds the same plugin-controlled escape hatch on restore: `restore.
 **RIA**: Restore Item Action plugin.  
 **Must-Include**: A plugin-set annotation on the action's `UpdatedItem` that tells Velero to bypass global include/exclude filters for that action's `AdditionalItems`.  
 **Global Restore Filter**: `RestoreSpec` filters applied uniformly — `IncludedNamespaces`/`ExcludedNamespaces`, `IncludedResources`/`ExcludedResources`, `IncludeClusterResources`, and label selectors.  
-**Fine-Grained Restore Filter**: Per-namespace / cluster-scoped policies from `RestoreSpec.ResourcePolicy` (`namespacedFilterPolicies`, `clusterScopedFilterPolicy`), as described in [Fine Grained Restore Filters via Resource Policies](https://github.com/velero-io/velero/blob/main/design/restore-filter-enhancement/fine-grained-restore-filters-design.md).  
+**Fine-Grained Restore Filter**: Per-namespace / cluster-scoped policies from `RestoreSpec.ResourcePolicy` (`namespacedFilterPolicies`, `clusterScopedFilterPolicy`), as described in [Fine Grained Restore Filters via Resource Policies](https://github.com/velero-io/velero/blob/main/design/Implemented/restore-filter-enhancement/fine-grained-restore-filters-design.md).  
 **`resourceMustHave`**: A small hardcoded server-side set of resource types that bypass resource and namespace I/E checks inside `restoreItem()` today (but not `IncludeClusterResources=false`).  
 
 ## Background
