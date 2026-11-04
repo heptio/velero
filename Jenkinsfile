@@ -24,7 +24,7 @@ properties([
         booleanParam(
             name: "SKIP_PREPARE_DEPLOYMENT_REPO",
             defaultValue: false,
-            description: "Skip the Prepare deployment repo stage"
+            description: "Skip the Prepare deployment stage"
         ),
         booleanParam(
             name: "PREPARE_REPO_DRY_RUN",
