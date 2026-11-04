@@ -326,7 +326,7 @@ func TestDataDownloadReconcile(t *testing.T) {
 		{
 			name:           "new dd but no target PVC",
 			dd:             dataDownloadBuilder().Finalizers([]string{DataUploadDownloadFinalizer}).Result(),
-			expectedResult: &ctrl.Result{Requeue: true},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:                     "new dd but accept failed",
