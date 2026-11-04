@@ -1,13 +1,13 @@
 ---
-title: "Upgrading to Velero 1.18"
+title: "Upgrading to Velero 1.19"
 layout: docs
 ---
 
 ## Prerequisites
 
-- Velero [v1.17.x][9] installed.
+- Velero [v1.18.x][11] installed.
 
-If you're not yet running at least Velero v1.17, see the following:
+If you're not yet running at least Velero v1.18, see the following:
 
 - [Upgrading to v1.8][1]
 - [Upgrading to v1.9][2]
@@ -19,13 +19,16 @@ If you're not yet running at least Velero v1.17, see the following:
 - [Upgrading to v1.15][8]
 - [Upgrading to v1.16][9]
 - [Upgrading to v1.17][10]
+- [Upgrading to v1.18][11]
 
 Before upgrading, check the [Velero compatibility matrix](https://github.com/velero-io/velero#velero-compatibility-matrix) to make sure your version of Kubernetes is supported by the new version of Velero.
 
+Restic path for fs-backup is completely removed in 1.19. Therefore, Velero 1.19 marks restores from backups with Restic path as FailedValidation; backup sync ignores backups with Restic path, so they won't appear in the cluster even though they are kept as is in the backup storage; if there are existing backups with Restic path in the cluster, after upgrade to 1.19, deletion request of these backups will fail.
+
 ## Instructions
 
-### Upgrade from v1.17
-1. Install the Velero v1.18 command-line interface (CLI) by following the [instructions here][0].
+### Upgrade from v1.18
+1. Install the Velero v1.19 command-line interface (CLI) by following the [instructions here][0].
 
     Verify that you've properly installed it by running:
 
@@ -37,7 +40,7 @@ Before upgrading, check the [Velero compatibility matrix](https://github.com/vel
 
     ```bash
     Client:
-        Version: v1.18.0
+        Version: v1.19.0
         Git commit: <git SHA>
     ```
 
@@ -52,13 +55,13 @@ Before upgrading, check the [Velero compatibility matrix](https://github.com/vel
    # set the container and image of the init container for plugin accordingly,
    # if you are using other plugin
     kubectl set image deployment/velero \
-        velero=velero/velero:v1.18.0 \
-        velero-plugin-for-aws=velero/velero-plugin-for-aws:v1.14.0 \
+        velero=velero/velero:v1.19.0 \
+        velero-plugin-for-aws=velero/velero-plugin-for-aws:v1.15.0 \
         --namespace velero
 
     # optional, if using the node agent daemonset
     kubectl set image daemonset/node-agent \
-        node-agent=velero/velero:v1.18.0 \
+        node-agent=velero/velero:v1.19.0 \
         --namespace velero
     ```
 4. Confirm that the deployment is up and running with the correct version by running:
@@ -71,11 +74,11 @@ Before upgrading, check the [Velero compatibility matrix](https://github.com/vel
 
     ```bash
     Client:
-        Version: v1.18.0
+        Version: v1.19.0
         Git commit: <git SHA>
 
     Server:
-        Version: v1.18.0
+        Version: v1.19.0
     ```
 
 [0]: basic-install.md#install-the-cli
@@ -89,3 +92,4 @@ Before upgrading, check the [Velero compatibility matrix](https://github.com/vel
 [8]: https://velero.io/docs/v1.15/upgrade-to-1.15
 [9]: https://velero.io/docs/v1.16/upgrade-to-1.16
 [10]: https://velero.io/docs/v1.17/upgrade-to-1.17
+[11]: https://velero.io/docs/v1.18/upgrade-to-1.18
