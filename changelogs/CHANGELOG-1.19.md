@@ -76,7 +76,7 @@ Kopia repository's hashing algorithm is changed from `BLAKE2B-256-128` to `HMAC-
 
 #### User-provided credentials file paths ignored
 
-Velero 1.19 ignores user-provided `spec.config.credentialsFile` values in BackupStorageLocation (BSL) and VolumeSnapshotLocation (VSL). If you previously configured credentials this way, store them in a Kubernetes Secret in the Velero namespace and reference it using `spec.credential.name` and `spec.credential.key`.  
+For security compliance, Velero 1.19 ignores user-provided `spec.config.credentialsFile` values in BackupStorageLocation (BSL) and VolumeSnapshotLocation (VSL). If you previously configured credentials this way, store them in a Kubernetes Secret in the Velero namespace and reference it using `spec.credential.name` and `spec.credential.key`.  
 
 ### All Changes
 <TBD>
