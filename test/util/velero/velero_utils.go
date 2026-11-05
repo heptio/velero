@@ -65,55 +65,57 @@ var ImagesMatrix = map[string]map[string][]string{
 	"v1.13": {
 		"aws":                   {"velero/velero-plugin-for-aws:v1.9.2"},
 		"azure":                 {"velero/velero-plugin-for-microsoft-azure:v1.9.2"},
-		"vsphere":               {"vsphereveleroplugin/velero-plugin-for-vsphere:v1.5.2"},
+		"vsphere":               {"velero/velero-plugin-for-aws:v1.9.2"},
 		"gcp":                   {"velero/velero-plugin-for-gcp:v1.9.2"},
 		"csi":                   {"velero/velero-plugin-for-csi:v0.7.1"},
-		"datamover":             {"velero/velero-plugin-for-aws:v1.9.2"},
 		"velero":                {"velero/velero:v1.13.2"},
 		"velero-restore-helper": {"velero/velero-restore-helper:v1.13.2"},
 	},
 	"v1.14": {
 		"aws":                   {"velero/velero-plugin-for-aws:v1.10.1"},
 		"azure":                 {"velero/velero-plugin-for-microsoft-azure:v1.10.1"},
-		"vsphere":               {"vsphereveleroplugin/velero-plugin-for-vsphere:v1.5.2"},
+		"vsphere":               {"velero/velero-plugin-for-aws:v1.10.1"},
 		"gcp":                   {"velero/velero-plugin-for-gcp:v1.10.1"},
-		"datamover":             {"velero/velero-plugin-for-aws:v1.10.1"},
 		"velero":                {"velero/velero:v1.14.1"},
 		"velero-restore-helper": {"velero/velero-restore-helper:v1.14.1"},
 	},
 	"v1.15": {
 		"aws":                   {"velero/velero-plugin-for-aws:v1.11.0"},
 		"azure":                 {"velero/velero-plugin-for-microsoft-azure:v1.11.0"},
-		"vsphere":               {"vsphereveleroplugin/velero-plugin-for-vsphere:v1.5.2"},
+		"vsphere":               {"velero/velero-plugin-for-aws:v1.11.0"},
 		"gcp":                   {"velero/velero-plugin-for-gcp:v1.11.0"},
-		"datamover":             {"velero/velero-plugin-for-aws:v1.11.0"},
 		"velero":                {"velero/velero:v1.15.2"},
 		"velero-restore-helper": {"velero/velero-restore-helper:v1.15.2"},
 	},
 	"v1.16": {
 		"aws":                   {"velero/velero-plugin-for-aws:v1.12.2"},
 		"azure":                 {"velero/velero-plugin-for-microsoft-azure:v1.12.2"},
-		"vsphere":               {"vsphereveleroplugin/velero-plugin-for-vsphere:v1.5.2"},
+		"vsphere":               {"velero/velero-plugin-for-aws:v1.12.2"},
 		"gcp":                   {"velero/velero-plugin-for-gcp:v1.12.2"},
-		"datamover":             {"velero/velero-plugin-for-aws:v1.12.2"},
 		"velero":                {"velero/velero:v1.16.2"},
 		"velero-restore-helper": {"velero/velero:v1.16.2"},
 	},
 	"v1.17": {
 		"aws":                   {"velero/velero-plugin-for-aws:v1.13.2"},
 		"azure":                 {"velero/velero-plugin-for-microsoft-azure:v1.13.2"},
-		"vsphere":               {"vsphereveleroplugin/velero-plugin-for-vsphere:v1.5.2"},
+		"vsphere":               {"velero/velero-plugin-for-aws:v1.13.2"},
 		"gcp":                   {"velero/velero-plugin-for-gcp:v1.13.2"},
-		"datamover":             {"velero/velero-plugin-for-aws:v1.13.2"},
 		"velero":                {"velero/velero:v1.17.2"},
 		"velero-restore-helper": {"velero/velero:v1.17.2"},
+	},
+	"v1.18": {
+		"aws":                   {"velero/velero-plugin-for-aws:v1.14.4"},
+		"azure":                 {"velero/velero-plugin-for-microsoft-azure:v1.14.4"},
+		"vsphere":               {"velero/velero-plugin-for-aws:v1.14.4"},
+		"gcp":                   {"velero/velero-plugin-for-gcp:v1.14.4"},
+		"velero":                {"velero/velero:v1.18.4"},
+		"velero-restore-helper": {"velero/velero:v1.18.4"},
 	},
 	"main": {
 		"aws":                   {"velero/velero-plugin-for-aws:main"},
 		"azure":                 {"velero/velero-plugin-for-microsoft-azure:main"},
-		"vsphere":               {"vsphereveleroplugin/velero-plugin-for-vsphere:v1.5.2"},
+		"vsphere":               {"velero/velero-plugin-for-aws:main"},
 		"gcp":                   {"velero/velero-plugin-for-gcp:main"},
-		"datamover":             {"velero/velero-plugin-for-aws:main"},
 		"velero":                {"velero/velero:main"},
 		"velero-restore-helper": {"velero/velero-restore-helper:main"},
 	},
@@ -155,12 +157,9 @@ func SetImagesToDefaultValues(config VeleroConfig, version string) (VeleroConfig
 	if ret.CloudProvider == AWS {
 		ret.Plugins = images[AWS][0]
 	}
-	// If HasVspherePlugin is false, only install the AWS plugin.
-	// If do nothing here, the default behavior is
-	// installing both AWS and vSphere plugins.
-	if ret.CloudProvider == Vsphere &&
-		!ret.HasVspherePlugin {
-		ret.Plugins = images[AWS][0]
+	// vSphere tests use the AWS plugin for S3-compatible backup storage.
+	if ret.CloudProvider == Vsphere {
+		ret.Plugins = images[Vsphere][0]
 	}
 
 	if ret.SnapshotMoveData && ret.CloudProvider == Azure {
@@ -191,7 +190,7 @@ func getVersionWithoutPatch(version string) string {
 	return versionWithoutPatch
 }
 
-func getPluginsByVersion(version string, cloudProvider string, needDataMoverPlugin bool) ([]string, error) {
+func getPluginsByVersion(version string, cloudProvider string) ([]string, error) {
 	var cloudMap map[string][]string
 	arr := strings.Split(version, ".")
 	if len(arr) >= 3 {
@@ -218,17 +217,6 @@ func getPluginsByVersion(version string, cloudProvider string, needDataMoverPlug
 		}
 	}
 
-	if needDataMoverPlugin {
-		pluginsForDatamover, ok := cloudMap["datamover"]
-		if !ok {
-			return nil, errors.Errorf("fail to get plugins by for datamover")
-		}
-		for _, p := range pluginsForDatamover {
-			if !slices.Contains(plugins, p) {
-				plugins = append(plugins, p)
-			}
-		}
-	}
 	return plugins, nil
 }
 
@@ -695,13 +683,12 @@ func VeleroVersion(ctx context.Context, veleroCLI, veleroNamespace string) error
 
 // GetPlugins will collect all kinds plugins for VeleroInstall, such as provider
 // plugins(cloud provider/object store provider, if object store provider is not
-// provided, it should be set to value as cloud provider's), feature plugins (CSI/Datamover)
+// provided, it should be set to value as cloud provider's), feature plugins
 func GetPlugins(ctx context.Context, veleroCfg VeleroConfig, defaultBSL bool) ([]string, error) {
 	veleroCLI := veleroCfg.VeleroCLI
 	cloudProvider := veleroCfg.CloudProvider
 	objectStoreProvider := veleroCfg.ObjectStoreProvider
 	providerPlugins := veleroCfg.Plugins
-	needDataMoverPlugin := false
 	var plugins []string
 
 	version, err := GetVeleroVersion(ctx, veleroCLI, true)
@@ -719,7 +706,7 @@ func GetPlugins(ctx context.Context, veleroCfg VeleroConfig, defaultBSL bool) ([
 				return []string{}, errors.New("AdditionalBSLProvider should be provided.")
 			}
 
-			plugins, err = getPluginsByVersion(version, veleroCfg.AdditionalBSLProvider, false)
+			plugins, err = getPluginsByVersion(version, veleroCfg.AdditionalBSLProvider)
 			if err != nil {
 				return nil, errors.WithMessagef(err, "Fail to get plugin by provider %s and version %s", veleroCfg.AdditionalBSLProvider, version)
 			}
@@ -745,11 +732,7 @@ func GetPlugins(ctx context.Context, veleroCfg VeleroConfig, defaultBSL bool) ([
 			version = veleroCfg.VeleroVersion
 		}
 
-		if veleroCfg.SnapshotMoveData && veleroCfg.DataMoverPlugin == "" && !veleroCfg.IsUpgradeTest {
-			needDataMoverPlugin = true
-		}
-
-		plugins, err = getPluginsByVersion(version, cloudProvider, needDataMoverPlugin)
+		plugins, err = getPluginsByVersion(version, cloudProvider)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "Fail to get plugin by provider %s and version %s", objectStoreProvider, version)
 		}

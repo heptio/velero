@@ -77,7 +77,7 @@ HAS_VSPHERE_PLUGIN ?= false
 RESTORE_HELPER_IMAGE ?=
 
 #Released version only
-UPGRADE_FROM_VELERO_VERSION ?= v1.15.2,v1.16.2,v1.17.2
+UPGRADE_FROM_VELERO_VERSION ?= v1.16.2,v1.17.2,v1.18.4
 
 # UPGRADE_FROM_VELERO_CLI can has the same format(a list divided by comma) with UPGRADE_FROM_VELERO_VERSION
 # Upgrade tests will be executed sequently according to the list by UPGRADE_FROM_VELERO_VERSION
@@ -137,7 +137,6 @@ UPLOADER_TYPE ?=
 
 SNAPSHOT_MOVE_DATA ?= false
 DATA_MOVER ?=
-DATA_MOVER_PLUGIN ?=
 DISABLE_INFORMER_CACHE ?= false
 
 DEFAULT_CLUSTER_NAME ?=
@@ -236,7 +235,6 @@ run-e2e: ginkgo
 		--standby-cluster-context=$(STANDBY_CLUSTER) \
 		--snapshot-move-data=$(SNAPSHOT_MOVE_DATA) \
 		--data-mover=$(DATA_MOVER) \
-		--data-mover-plugin=$(DATA_MOVER_PLUGIN) \
 		--standby-cluster-cloud-provider=$(STANDBY_CLUSTER_CLOUD_PROVIDER) \
 		--standby-cluster-plugins=$(STANDBY_CLUSTER_PLUGINS) \
 		--standby-cluster-object-store-provider=$(STANDBY_CLUSTER_OBJECT_STORE_PROVIDER) \

@@ -276,12 +276,6 @@ func init() {
 		"data mover name for snapshot data movement; empty or velero uses the built-in data mover.",
 	)
 	flag.StringVar(
-		&test.VeleroCfg.DataMoverPlugin,
-		"data-mover-plugin",
-		"",
-		"customized plugin for data mover.",
-	)
-	flag.StringVar(
 		&test.VeleroCfg.StandbyClusterCloudProvider,
 		"standby-cluster-cloud-provider",
 		"",
