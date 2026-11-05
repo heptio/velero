@@ -70,6 +70,9 @@ func (c *CachePVCTestCase) Init() error {
 		"--include-namespaces", strings.Join(*c.NSIncluded, ","),
 		"--snapshot-volumes=true", "--snapshot-move-data",
 	}
+	if c.VeleroCfg.DataMover != "" {
+		c.BackupArgs = append(c.BackupArgs, "--data-mover", c.VeleroCfg.DataMover)
+	}
 
 	c.RestoreArgs = []string{
 		"create", "--namespace", c.VeleroCfg.VeleroNamespace, "restore", c.RestoreName,

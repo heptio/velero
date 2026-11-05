@@ -154,6 +154,7 @@ type VeleroConfig struct {
 	ProvideSnapshotsVolumeParam       bool
 	VeleroServerDebugMode             bool
 	SnapshotMoveData                  bool
+	DataMover                         string
 	DataMoverPlugin                   string
 	StandbyClusterCloudProvider       string
 	StandbyClusterPlugins             string
@@ -204,6 +205,7 @@ type BackupConfig struct {
 	OrderedResources            string
 	DefaultVolumesToFsBackup    bool
 	SnapshotMoveData            bool
+	DataMover                   string
 }
 
 type VeleroCLI2Version struct {

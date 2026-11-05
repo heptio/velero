@@ -136,6 +136,7 @@ STANDBY_CLUSTER ?=
 UPLOADER_TYPE ?=
 
 SNAPSHOT_MOVE_DATA ?= false
+DATA_MOVER ?=
 DATA_MOVER_PLUGIN ?=
 DISABLE_INFORMER_CACHE ?= false
 
@@ -234,6 +235,7 @@ run-e2e: ginkgo
 		--default-cluster-context=$(DEFAULT_CLUSTER) \
 		--standby-cluster-context=$(STANDBY_CLUSTER) \
 		--snapshot-move-data=$(SNAPSHOT_MOVE_DATA) \
+		--data-mover=$(DATA_MOVER) \
 		--data-mover-plugin=$(DATA_MOVER_PLUGIN) \
 		--standby-cluster-cloud-provider=$(STANDBY_CLUSTER_CLOUD_PROVIDER) \
 		--standby-cluster-plugins=$(STANDBY_CLUSTER_PLUGINS) \
