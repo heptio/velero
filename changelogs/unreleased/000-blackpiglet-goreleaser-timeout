@@ -1,1 +1,1 @@
-Increase the GoReleaser timeout to 60 minutes for published and snapshot releases so multi-platform builds have more time to finish.
+Make the GoReleaser timeout configurable through RELEASE_TIMEOUT at the tag-release.sh entry point, defaulting to 60 minutes, and document remote release sessions.
