@@ -1,0 +1,54 @@
+name: Fuzz
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "pkg/archive/**"
+      - ".github/workflows/fuzz.yml"
+  schedule:
+    - cron: '50 5 * * 0'
+
+# Declare default permissions as read only.
+permissions: read-all
+
+jobs:
+  fuzz:
+    name: Fuzz ${{ matrix.target }}
+    # Skip on forks; scheduled runs are only useful on the canonical repo.
+    if: github.repository == 'velero-io/velero'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: ./pkg/archive/
+            target: FuzzSanitizeArchivePath
+          - package: ./pkg/archive/
+            target: FuzzUnzipAndExtractBackup
+    env:
+      # Short on pull requests, longer on the weekly schedule.
+      FUZZ_TIME: ${{ github.event_name == 'schedule' && '5m' || '30s' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+
+      - name: Run fuzz target
+        run: go test ${{ matrix.package }} -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime "$FUZZ_TIME"
+
+      - name: Upload failing inputs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: fuzz-failures-${{ matrix.target }}
+          path: pkg/archive/testdata/fuzz/
+          if-no-files-found: ignore
