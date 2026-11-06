@@ -1,3 +1,14 @@
+# Runs the Go fuzz targets (FuzzXxx functions in *_test.go files) against code that parses
+# untrusted input, starting with the backup archive extractor in pkg/archive.
+#
+# Why this exists: Velero is preparing its CNCF incubation application, and fuzzing is part of
+# the security work tracked in https://github.com/velero-io/velero/issues/10383. The OpenSSF
+# Scorecard "Fuzzing" check, which CNCF reviewers and CLOMonitor look at, passes when a project
+# has fuzz targets that run in CI. Running them here is how Velero satisfies that incubation
+# criterion.
+#
+# Scope: in-repo fuzz targets only. Enrolling in OSS-Fuzz needs a maintainer discussion and is
+# deferred. To cover more code, add FuzzXxx functions and extend the matrix below.
 name: Fuzz
 on:
   pull_request:
