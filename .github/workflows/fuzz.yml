@@ -56,6 +56,29 @@ jobs:
       - name: Run fuzz target
         run: go test ${{ matrix.package }} -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime "$FUZZ_TIME"
 
+      # When a target fails, Go writes the input that triggered the failure to
+      # pkg/archive/testdata/fuzz/<FuzzTarget>/<id>. The next two steps publish that input as an
+      # artifact and print the follow-up steps in the job summary:
+      #   1. Download the artifact and copy the file to the same path in your checkout.
+      #   2. Reproduce: go test ./pkg/archive/ -run '<FuzzTarget>/<id>'
+      #   3. Fix the bug, then commit the input file so it stays as a regression test.
+      #   4. If the input crashes or escapes the extractor on attacker-controlled archive data, it
+      #      may be a vulnerability: report it privately following SECURITY.md before discussing
+      #      it publicly, because artifacts of public runs can be downloaded by anyone signed in.
+      - name: Explain how to handle the failure
+        if: failure()
+        run: |
+          {
+            echo "### Fuzz target \`${{ matrix.target }}\` failed"
+            echo
+            echo "The failing input is attached as the \`fuzz-failures-${{ matrix.target }}\` artifact."
+            echo
+            echo "1. Download the artifact and copy the file to \`pkg/archive/testdata/fuzz/${{ matrix.target }}/\`."
+            echo "2. Reproduce: \`go test ./pkg/archive/ -run '${{ matrix.target }}/<file name>'\`."
+            echo "3. Fix the bug and commit the input file as a regression test."
+            echo "4. If it looks exploitable, report it privately per SECURITY.md before discussing it publicly."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload failing inputs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
