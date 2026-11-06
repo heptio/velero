@@ -2,6 +2,8 @@ module github.com/velero-io/velero
 
 go 1.27.0
 
+toolchain go1.27.3
+
 require (
 	cloud.google.com/go/storage v1.62.3
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
