@@ -55,8 +55,8 @@ func NewBackupTracker() BackupTracker {
 }
 
 // NewBackupTrackerWithMetrics returns a new BackupTracker that keeps the
-// backup_active_total metric in step with the backups it is tracking. The
-// metrics argument may be nil, in which case no metric is recorded.
+// backup_active metric in step with the backups it is tracking. The metrics
+// argument may be nil, in which case no metric is recorded.
 func NewBackupTrackerWithMetrics(serverMetrics *metrics.ServerMetrics) BackupTracker {
 	return &backupTracker{
 		readyToStartBackups: sets.New[string](),
@@ -66,13 +66,18 @@ func NewBackupTrackerWithMetrics(serverMetrics *metrics.ServerMetrics) BackupTra
 	}
 }
 
-// recordRunningCount publishes the current running count. Callers must hold
-// the write lock.
-func (bt *backupTracker) recordRunningCount() {
+// recordActive publishes the size of each tracked set to the backup_active
+// metric. Post-processing backups are reported too, and separately: they no
+// longer occupy a concurrency slot, but a data mover backup spends its
+// DataUpload time there, so leaving them out would report nothing running
+// during the longest part of the backup. Callers must hold the write lock.
+func (bt *backupTracker) recordActive() {
 	if bt.metrics == nil {
 		return
 	}
-	bt.metrics.SetBackupActiveTotal(int64(bt.inProgressBackups.Len() + bt.readyToStartBackups.Len()))
+	bt.metrics.SetBackupActive(metrics.BackupActivePhaseReadyToStart, int64(bt.readyToStartBackups.Len()))
+	bt.metrics.SetBackupActive(metrics.BackupActivePhaseInProgress, int64(bt.inProgressBackups.Len()))
+	bt.metrics.SetBackupActive(metrics.BackupActivePhasePostProcessing, int64(bt.postProgressBackups.Len()))
 }
 
 func (bt *backupTracker) AddReadyToStart(ns, name string) {
@@ -80,7 +85,7 @@ func (bt *backupTracker) AddReadyToStart(ns, name string) {
 	defer bt.lock.Unlock()
 
 	bt.readyToStartBackups.Insert(backupTrackerKey(ns, name))
-	bt.recordRunningCount()
+	bt.recordActive()
 }
 
 func (bt *backupTracker) Add(ns, name string) {
@@ -90,7 +95,7 @@ func (bt *backupTracker) Add(ns, name string) {
 	key := backupTrackerKey(ns, name)
 	bt.readyToStartBackups.Delete(key)
 	bt.inProgressBackups.Insert(key)
-	bt.recordRunningCount()
+	bt.recordActive()
 }
 
 func (bt *backupTracker) AddPostProcessing(ns, name string) {
@@ -101,7 +106,7 @@ func (bt *backupTracker) AddPostProcessing(ns, name string) {
 	bt.readyToStartBackups.Delete(key)
 	bt.inProgressBackups.Delete(key)
 	bt.postProgressBackups.Insert(key)
-	bt.recordRunningCount()
+	bt.recordActive()
 }
 
 func (bt *backupTracker) Delete(ns, name string) {
@@ -112,7 +117,7 @@ func (bt *backupTracker) Delete(ns, name string) {
 	bt.readyToStartBackups.Delete(key)
 	bt.inProgressBackups.Delete(key)
 	bt.postProgressBackups.Delete(key)
-	bt.recordRunningCount()
+	bt.recordActive()
 }
 
 // Contains returns true if backup is InProgress or post-InProgress

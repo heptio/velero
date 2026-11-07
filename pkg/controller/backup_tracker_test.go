@@ -47,40 +47,48 @@ func TestBackupTracker(t *testing.T) {
 	assert.False(t, bt.Contains("ns2", "name2"))
 }
 
-func TestBackupTrackerRecordsActiveTotal(t *testing.T) {
+func TestBackupTrackerRecordsActive(t *testing.T) {
 	m := metrics.NewServerMetrics()
 	bt := NewBackupTrackerWithMetrics(m)
 
-	activeTotal := func() float64 {
-		g, ok := m.Metrics()["backup_active_total"].(prometheus.Gauge)
-		require.True(t, ok, "backup_active_total gauge is not registered")
-		return testutil.ToFloat64(g)
+	phase := func(p string) float64 {
+		g, ok := m.Metrics()["backup_active"].(*prometheus.GaugeVec)
+		require.True(t, ok, "backup_active is not a registered GaugeVec")
+		return testutil.ToFloat64(g.WithLabelValues(p))
+	}
+	inFlight := func() float64 {
+		return phase(metrics.BackupActivePhaseReadyToStart) +
+			phase(metrics.BackupActivePhaseInProgress) +
+			phase(metrics.BackupActivePhasePostProcessing)
 	}
 
-	assert.Equal(t, float64(0), activeTotal())
+	assert.Equal(t, float64(0), inFlight())
 
-	// ReadyToStart and InProgress both count as active, because together they
-	// are what the queue controller limits concurrency on.
 	bt.AddReadyToStart("ns", "name")
-	assert.Equal(t, float64(1), activeTotal())
+	assert.Equal(t, float64(1), phase(metrics.BackupActivePhaseReadyToStart))
+	assert.Equal(t, float64(1), inFlight())
 
 	bt.Add("ns", "name")
-	assert.Equal(t, float64(1), activeTotal(), "moving ReadyToStart to InProgress must not double count")
+	assert.Equal(t, float64(0), phase(metrics.BackupActivePhaseReadyToStart))
+	assert.Equal(t, float64(1), phase(metrics.BackupActivePhaseInProgress))
+	assert.Equal(t, float64(1), inFlight(), "moving ReadyToStart to InProgress must not double count")
+
+	// The case that matters: a data mover backup spends its DataUpload time in
+	// WaitingForPluginOperations, which the tracker holds as post-processing.
+	// It no longer occupies a concurrency slot, but it is very much running, so
+	// the in-flight total must stay at 1.
+	bt.AddPostProcessing("ns", "name")
+	assert.Equal(t, float64(0), phase(metrics.BackupActivePhaseInProgress))
+	assert.Equal(t, float64(1), phase(metrics.BackupActivePhasePostProcessing))
+	assert.Equal(t, float64(1), inFlight(), "a backup in post-processing is still in flight")
 
 	bt.AddReadyToStart("ns", "queued")
-	assert.Equal(t, float64(2), activeTotal())
-
-	// Post-processing backups are no longer occupying a slot.
-	bt.AddPostProcessing("ns", "name")
-	assert.Equal(t, float64(1), activeTotal())
+	assert.Equal(t, float64(2), inFlight())
 
 	bt.Delete("ns", "queued")
-	assert.Equal(t, float64(0), activeTotal())
-
-	// Deleting a backup that is still post-processing leaves the count at zero
-	// rather than going negative.
 	bt.Delete("ns", "name")
-	assert.Equal(t, float64(0), activeTotal())
+	assert.Equal(t, float64(0), inFlight())
+	assert.Equal(t, float64(0), phase(metrics.BackupActivePhasePostProcessing))
 }
 
 func TestBackupTrackerWithoutMetricsDoesNotPanic(t *testing.T) {

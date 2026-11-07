@@ -372,6 +372,7 @@ func (s *server) run() error {
 	s.metrics.RegisterAllMetrics()
 	// Initialize manual backup metrics
 	s.metrics.InitSchedule("")
+	s.metrics.InitBackupActive()
 
 	if err := s.setupBeforeControllerRun(); err != nil {
 		return err
