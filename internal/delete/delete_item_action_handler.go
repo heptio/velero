@@ -106,11 +106,16 @@ func InvokeDeleteActions(ctx *Context) error {
 
 		// Iterate over all items, grouped by namespace.
 		for namespace, items := range resourceList.ItemsByNamespace {
-			nsLog := ctx.Log.WithField("namespace", namespace)
-			nsLog.Info("Starting to check for items in namespace")
-
 			// Filter applicable actions based on namespace only once per namespace.
 			actions := ctx.getApplicableActions(groupResource, namespace)
+
+			// Nothing can run for this namespace, so skip reading and logging its items.
+			if len(actions) == 0 {
+				continue
+			}
+
+			nsLog := ctx.Log.WithField("namespace", namespace)
+			nsLog.Info("Starting to check for items in namespace")
 
 			// Process individual items from the backup
 			for _, item := range items {
