@@ -281,16 +281,24 @@ jobs:
       - name: Preload AWS plugin image into kind (avoid in-cluster pull flakiness)
         run: |
           set -euo pipefail
+          image=velero/velero-plugin-for-aws:latest
           for attempt in 1 2 3 4 5; do
-            docker pull velero/velero-plugin-for-aws:latest && break
+            docker pull "$image" && break
             echo "docker pull attempt ${attempt} failed" >&2
             if [ "$attempt" = 5 ]; then
-              echo "::error::failed to pull velero/velero-plugin-for-aws:latest after 5 attempts" >&2
+              echo "::error::failed to pull ${image} after 5 attempts" >&2
               exit 1
             fi
             sleep $((attempt * 5))
           done
-          kind load docker-image velero/velero-plugin-for-aws:latest --name kind
+          # Not `kind load docker-image`: that imports with ctr
+          # --all-platforms, which fails on multi-arch images whose index
+          # carries attestation/other-platform manifests whose blobs were
+          # never pulled to the runner ("ctr: content digest ...: not
+          # found"). Import the docker-saved image without --all-platforms
+          # so only the pulled platform's blobs are required.
+          node="$(kind get nodes --name kind | head -n 1)"
+          docker save "$image" | docker exec -i "$node" ctr --namespace=k8s.io images import --digests -
       - name: Fetch built CLI
         id: cli-cache
         uses: actions/cache/restore@v6
