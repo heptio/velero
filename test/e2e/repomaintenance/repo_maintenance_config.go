@@ -115,6 +115,9 @@ func (r *RepoMaintenanceTestCase) Init() error {
 		"--include-namespaces", strings.Join(*r.NSIncluded, ","),
 		"--snapshot-volumes=true", "--snapshot-move-data", "--wait",
 	}
+	if r.VeleroCfg.DataMover != "" {
+		r.BackupArgs = append(r.BackupArgs, "--data-mover", r.VeleroCfg.DataMover)
+	}
 
 	// Message output by ginkgo
 	r.TestMsg = &TestMSG{

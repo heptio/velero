@@ -321,12 +321,12 @@ func TestDataDownloadReconcile(t *testing.T) {
 			dd:             dataDownloadBuilder().Finalizers([]string{DataUploadDownloadFinalizer}).Result(),
 			constrained:    true,
 			expected:       dataDownloadBuilder().Finalizers([]string{DataUploadDownloadFinalizer}).Result(),
-			expectedResult: &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:           "new dd but no target PVC",
 			dd:             dataDownloadBuilder().Finalizers([]string{DataUploadDownloadFinalizer}).Result(),
-			expectedResult: &ctrl.Result{Requeue: true},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:                     "new dd but accept failed",
@@ -406,7 +406,7 @@ func TestDataDownloadReconcile(t *testing.T) {
 			dataMgr:        datapath.NewManager(0),
 			notNilExpose:   true,
 			notMockCleanUp: true,
-			expectedResult: &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:         "data path init error",
