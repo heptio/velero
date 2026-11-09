@@ -244,6 +244,30 @@ func TestInvokeDeleteItemActionsWithNoPlugins(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Items that no DeleteItemAction applies to must not be read at all. The
+// persistent volume below is not valid JSON, so reading it would fail.
+func TestInvokeDeleteActionsSkipsItemsWithNoApplicableActions(t *testing.T) {
+	h, dh := newHarness(t)
+	h.AddResource(t, dh, test.Pods())
+	h.AddResource(t, dh, test.PVs())
+
+	action := new(recordResourcesAction).ForResource("pods")
+	c := &Context{
+		Backup: builder.ForBackup("velero", "velero").Result(),
+		BackupReader: test.NewTarWriter(t).
+			AddItems("pods", builder.ForPod("ns-1", "pod-1").Result()).
+			Add("resources/persistentvolumes/cluster/pv-1.json", []byte("not json")).
+			Done(),
+		Filesystem:      test.NewFakeFileSystem(),
+		DiscoveryHelper: dh,
+		Actions:         []velero.DeleteItemAction{action},
+		Log:             logrus.StandardLogger(),
+	}
+
+	require.NoError(t, InvokeDeleteActions(c))
+	assert.Equal(t, []string{"ns-1/pod-1"}, action.ids)
+}
+
 // failingAction is a DeleteItemAction that always returns an error from Execute.
 // It is used to verify that InvokeDeleteActions surfaces plugin errors instead
 // of swallowing them.
