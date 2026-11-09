@@ -655,6 +655,14 @@ func TestFindPVRForTargetPod(t *testing.T) {
 	}).Build()
 	requests = reconciler.findPVRForTargetPod(t.Context(), pod)
 	assert.Len(t, requests, 1)
+
+	// client list error
+	reconciler.client = &FakeClient{
+		Client:    fake.NewClientBuilder().WithScheme(scheme).Build(),
+		listError: errors.New("list error"),
+	}
+	requests = reconciler.findPVRForTargetPod(t.Context(), pod)
+	assert.Empty(t, requests)
 }
 
 const pvrName string = "pvr-1"
@@ -1603,6 +1611,86 @@ func TestFindPVBForRestorePod(t *testing.T) {
 		if test.pod != nil {
 			r.client.Delete(ctx, test.pod, &kbclient.DeleteOptions{})
 		}
+	}
+}
+
+func TestFindPVRByRestorePod(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, velerov1api.AddToScheme(scheme))
+	require.NoError(t, corev1api.AddToScheme(scheme))
+
+	pvr := pvrBuilder().Result()
+
+	tests := []struct {
+		name      string
+		pod       corev1api.Pod
+		client    client.Client
+		expectPVR *velerov1api.PodVolumeRestore
+		expectErr bool
+	}{
+		{
+			name: "pod without pvr label",
+			pod: corev1api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: velerov1api.DefaultNamespace,
+					Name:      "pod-without-label",
+				},
+			},
+			client:    fake.NewClientBuilder().WithScheme(scheme).Build(),
+			expectPVR: nil,
+			expectErr: false,
+		},
+		{
+			name: "pod with pvr label and pvr exists",
+			pod: corev1api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: velerov1api.DefaultNamespace,
+					Name:      "pod-with-label",
+					Labels: map[string]string{
+						velerov1api.PVRLabel: pvrName,
+					},
+				},
+			},
+			client:    fake.NewClientBuilder().WithScheme(scheme).WithObjects(pvr).Build(),
+			expectPVR: pvr,
+			expectErr: false,
+		},
+		{
+			name: "pod with pvr label but get returns error",
+			pod: corev1api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: velerov1api.DefaultNamespace,
+					Name:      "pod-with-label",
+					Labels: map[string]string{
+						velerov1api.PVRLabel: pvrName,
+					},
+				},
+			},
+			client: &FakeClient{
+				Client:   fake.NewClientBuilder().WithScheme(scheme).Build(),
+				getError: errors.New("get error"),
+			},
+			expectPVR: nil,
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := findPVRByRestorePod(t.Context(), tc.client, tc.pod)
+			if tc.expectErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else if tc.expectPVR == nil {
+				require.NoError(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tc.expectPVR.Name, result.Name)
+				assert.Equal(t, tc.expectPVR.Namespace, result.Namespace)
+			}
+		})
 	}
 }
 
