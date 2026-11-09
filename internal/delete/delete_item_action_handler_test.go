@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
+	logrustest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -293,4 +294,34 @@ func TestInvokeDeleteActionsReturnsPluginErrors(t *testing.T) {
 	// The loop must keep going: the action should run for every matching item,
 	// not stop at the first failure.
 	assert.Equal(t, 2, action.executed)
+}
+
+func TestInvokeDeleteActionsSkipsItemsWithNoApplicableActions(t *testing.T) {
+	fs := test.NewFakeFileSystem()
+	log, hook := logrustest.NewNullLogger()
+
+	tarball := test.NewTarWriter(t).
+		AddItems("pods", builder.ForPod("ns-1", "pod-1").Result(), builder.ForPod("ns-2", "pod-2").Result()).
+		Done()
+
+	// The action only applies to a different resource, so no pod item needs processing.
+	action := new(recordResourcesAction).ForResource("deployments")
+
+	h, dh := newHarness(t)
+	h.AddResource(t, dh, test.Pods())
+
+	c := &Context{
+		Backup:          builder.ForBackup("velero", "velero").Result(),
+		BackupReader:    tarball,
+		Filesystem:      fs,
+		DiscoveryHelper: dh,
+		Actions:         []velero.DeleteItemAction{action},
+		Log:             log,
+	}
+
+	require.NoError(t, InvokeDeleteActions(c))
+	assert.Empty(t, action.ids)
+	for _, e := range hook.AllEntries() {
+		assert.NotContains(t, e.Message, "invoking DeleteItemAction plugins")
+	}
 }
