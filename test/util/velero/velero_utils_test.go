@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/velero-io/velero/test"
 )
 
 func Test_getVersionWithoutPatch(t *testing.T) {
@@ -49,6 +51,43 @@ func Test_getVersionWithoutPatch(t *testing.T) {
 		t.Run(test.caseName, func(t *testing.T) {
 			res := getVersionWithoutPatch(test.version)
 			require.Equal(t, test.result, res)
+		})
+	}
+}
+
+func TestVSpherePluginSelection(t *testing.T) {
+	for _, version := range []string{"v1.13.2", "v1.17.2", "v1.18.4", "main"} {
+		t.Run(version, func(t *testing.T) {
+			images := ImagesMatrix[getVersionWithoutPatch(version)]
+			plugins, err := getPluginsByVersion(version, test.Vsphere)
+			require.NoError(t, err)
+			require.Equal(t, images[test.AWS], plugins)
+
+			for _, hasVSpherePlugin := range []bool{false, true} {
+				for _, moveData := range []bool{false, true} {
+					config, err := SetImagesToDefaultValues(test.VeleroConfig{
+						CloudProvider:    test.Vsphere,
+						HasVspherePlugin: hasVSpherePlugin,
+						SnapshotMoveData: moveData,
+					}, version)
+					require.NoError(t, err)
+					require.Equal(t, images[test.AWS][0], config.Plugins)
+				}
+			}
+		})
+	}
+}
+
+func TestV118PluginSelection(t *testing.T) {
+	for provider, image := range map[string]string{
+		test.AWS:   "velero/velero-plugin-for-aws:v1.14.4",
+		test.Azure: "velero/velero-plugin-for-microsoft-azure:v1.14.4",
+		test.GCP:   "velero/velero-plugin-for-gcp:v1.14.4",
+	} {
+		t.Run(provider, func(t *testing.T) {
+			plugins, err := getPluginsByVersion("v1.18.4", provider)
+			require.NoError(t, err)
+			require.Equal(t, []string{image}, plugins)
 		})
 	}
 }

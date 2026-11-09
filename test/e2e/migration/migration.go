@@ -230,6 +230,9 @@ func (m *migrationE2E) Backup() error {
 
 		if OriginVeleroCfg.SnapshotMoveData {
 			m.BackupArgs = append(m.BackupArgs, "--snapshot-move-data")
+			if OriginVeleroCfg.DataMover != "" {
+				m.BackupArgs = append(m.BackupArgs, "--data-mover", OriginVeleroCfg.DataMover)
+			}
 		}
 
 		Expect(veleroutil.VeleroBackupExec(

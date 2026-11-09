@@ -121,6 +121,9 @@ func (n *NodeAgentConfigTestCase) Init() error {
 		"--include-namespaces", strings.Join(*n.NSIncluded, ","),
 		"--snapshot-volumes=true", "--snapshot-move-data",
 	}
+	if n.VeleroCfg.DataMover != "" {
+		n.BackupArgs = append(n.BackupArgs, "--data-mover", n.VeleroCfg.DataMover)
+	}
 
 	// Need to verify the data mover pod content, so don't wait until restore completion.
 	n.RestoreArgs = []string{
