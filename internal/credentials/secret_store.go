@@ -21,7 +21,7 @@ import (
 	corev1api "k8s.io/api/core/v1"
 	kbclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/vmware-tanzu/velero/pkg/util/kube"
+	"github.com/velero-io/velero/pkg/util/kube"
 )
 
 // SecretStore defines operations for interacting with credentials

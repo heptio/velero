@@ -19,8 +19,8 @@ package volume
 import (
 	"github.com/cockroachdb/errors"
 
-	"github.com/vmware-tanzu/velero/internal/credentials"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/velero-io/velero/internal/credentials"
+	velerov1api "github.com/velero-io/velero/pkg/apis/velero/v1"
 )
 
 // UpdateVolumeSnapshotLocationWithCredentialConfig adds the credentials file path to the config

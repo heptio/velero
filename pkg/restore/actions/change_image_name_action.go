@@ -28,8 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/vmware-tanzu/velero/pkg/plugin/framework/common"
-	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	"github.com/velero-io/velero/pkg/plugin/framework/common"
+	"github.com/velero-io/velero/pkg/plugin/velero"
 )
 
 const (
@@ -161,14 +161,24 @@ func (a *ChangeImageNameAction) replaceImageName(obj *unstructured.Unstructured,
 	}
 	for i, container := range containers {
 		log.Infoln("container:", container)
-		if image, ok := container.(map[string]any)["image"]; ok {
-			imageName := image.(string)
-			if exists, newImageName, err := a.isImageReplaceRuleExist(log, imageName, config); exists && err == nil {
-				needUpdateObj = true
-				log.Infof("Updating item's image from %s to %s", imageName, newImageName)
-				container.(map[string]any)["image"] = newImageName
-				containers[i] = container
-			}
+		containerMap, ok := container.(map[string]any)
+		if !ok {
+			log.Warnf("skipping container: container entry is not a map (got %T)", container)
+			continue
+		}
+		imageName, found, err := unstructured.NestedString(containerMap, "image")
+		if err != nil {
+			log.Warnf("skipping container: image field is not a string: %v", err)
+			continue
+		}
+		if !found || imageName == "" {
+			continue
+		}
+		if exists, newImageName, err := a.isImageReplaceRuleExist(log, imageName, config); exists && err == nil {
+			needUpdateObj = true
+			log.Infof("Updating item's image from %s to %s", imageName, newImageName)
+			containerMap["image"] = newImageName
+			containers[i] = containerMap
 		}
 	}
 	if needUpdateObj {

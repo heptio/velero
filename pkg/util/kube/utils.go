@@ -37,10 +37,10 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"github.com/vmware-tanzu/velero/pkg/label"
-	"github.com/vmware-tanzu/velero/pkg/uploader"
-	"github.com/vmware-tanzu/velero/pkg/util/filesystem"
+	velerov1api "github.com/velero-io/velero/pkg/apis/velero/v1"
+	"github.com/velero-io/velero/pkg/label"
+	"github.com/velero-io/velero/pkg/uploader"
+	"github.com/velero-io/velero/pkg/util/filesystem"
 )
 
 // These annotations are taken from the Kubernetes persistent volume/persistent volume claim controller.
@@ -248,7 +248,7 @@ func isProvisionedByCSI(log logrus.FieldLogger, pv *corev1api.PersistentVolume, 
 		return true, nil
 	}
 	// Although the pv.Spec.CSI is nil, the volume could be provisioned by a CSI driver when enabling the CSI migration
-	// Refer to https://github.com/vmware-tanzu/velero/issues/4496 for more details
+	// Refer to https://github.com/velero-io/velero/issues/4496 for more details
 	if pv.Annotations != nil {
 		driverName := pv.Annotations[KubeAnnDynamicallyProvisioned]
 		migratedDriver := pv.Annotations[KubeAnnMigratedTo]

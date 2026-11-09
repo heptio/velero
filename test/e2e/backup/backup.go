@@ -25,11 +25,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	. "github.com/vmware-tanzu/velero/test"
-	"github.com/vmware-tanzu/velero/test/util/common"
-	. "github.com/vmware-tanzu/velero/test/util/k8s"
-	. "github.com/vmware-tanzu/velero/test/util/kibishii"
-	. "github.com/vmware-tanzu/velero/test/util/velero"
+	. "github.com/velero-io/velero/test"
+	"github.com/velero-io/velero/test/util/common"
+	. "github.com/velero-io/velero/test/util/k8s"
+	. "github.com/velero-io/velero/test/util/kibishii"
+	. "github.com/velero-io/velero/test/util/velero"
 )
 
 type BackupRestoreTestConfig struct {
@@ -74,12 +74,10 @@ func BackupRestoreTest(backupRestoreTestConfig BackupRestoreTestConfig) {
 		veleroCfg.KibishiiDirectory = veleroCfg.KibishiiDirectory + backupRestoreTestConfig.kibishiiPatchSubDir
 		veleroCfg.UseVolumeSnapshots = useVolumeSnapshots
 		veleroCfg.UseNodeAgent = !useVolumeSnapshots
-		if veleroCfg.CloudProvider == Kind {
-			Skip("Volume snapshots plugin and File System Backups are not supported on kind")
-			// on kind cluster snapshots are not supported since there is no velero snapshot plugin for kind volumes.
-			// and PodVolumeBackups are not supported because PVB creation gets skipped for hostpath volumes, which are the only
-			// volumes created on kind clusters using the default storage class and provisioner (provisioner: rancher.io/local-path)
-			// This test suite checks for volume snapshots and PVBs generated from FileSystemBackups, so skip it on kind clusters
+		// This suite asserts on volume snapshots and on PVBs from file system
+		// backups, so it needs PVs that Velero will act on at all.
+		if KibishiiVolumesAreHostPath(veleroCfg) {
+			Skip("Kibishii's PVs on kind are hostPath without EnableCSI, so there is nothing to snapshot or file system back up")
 		}
 
 		// [SKIP]: Static provisioning for vSphere CSI driver works differently from other drivers.

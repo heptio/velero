@@ -19,7 +19,7 @@ package delete
 import (
 	"io"
 
-	"github.com/vmware-tanzu/velero/pkg/plugin/framework"
+	"github.com/velero-io/velero/pkg/plugin/framework"
 
 	"github.com/cockroachdb/errors"
 	"github.com/sirupsen/logrus"
@@ -28,11 +28,11 @@ import (
 	kubeerrs "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"github.com/vmware-tanzu/velero/pkg/archive"
-	"github.com/vmware-tanzu/velero/pkg/discovery"
-	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
-	"github.com/vmware-tanzu/velero/pkg/util/filesystem"
+	velerov1api "github.com/velero-io/velero/pkg/apis/velero/v1"
+	"github.com/velero-io/velero/pkg/archive"
+	"github.com/velero-io/velero/pkg/discovery"
+	"github.com/velero-io/velero/pkg/plugin/velero"
+	"github.com/velero-io/velero/pkg/util/filesystem"
 )
 
 // Context provides the necessary environment to run DeleteItemAction plugins

@@ -19,7 +19,7 @@ package collections
 import (
 	"testing"
 
-	"github.com/vmware-tanzu/velero/internal/resourcepolicies"
+	"github.com/velero-io/velero/internal/resourcepolicies"
 
 	"github.com/cockroachdb/errors"
 	"github.com/sirupsen/logrus"
@@ -29,9 +29,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"github.com/vmware-tanzu/velero/pkg/builder"
-	"github.com/vmware-tanzu/velero/pkg/test"
+	velerov1api "github.com/velero-io/velero/pkg/apis/velero/v1"
+	"github.com/velero-io/velero/pkg/builder"
+	"github.com/velero-io/velero/pkg/test"
 )
 
 func TestShouldInclude(t *testing.T) {

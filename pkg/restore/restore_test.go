@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vmware-tanzu/velero/internal/resourcepolicies"
-	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
-	"github.com/vmware-tanzu/velero/pkg/util/collections"
+	"github.com/velero-io/velero/internal/resourcepolicies"
+	"github.com/velero-io/velero/pkg/util/boolptr"
+	"github.com/velero-io/velero/pkg/util/collections"
 
 	"github.com/cockroachdb/errors"
 	snapshotv1api "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
@@ -46,26 +46,26 @@ import (
 	"k8s.io/client-go/dynamic"
 	kubetesting "k8s.io/client-go/testing"
 
-	"github.com/vmware-tanzu/velero/internal/volume"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"github.com/vmware-tanzu/velero/pkg/archive"
-	"github.com/vmware-tanzu/velero/pkg/builder"
-	"github.com/vmware-tanzu/velero/pkg/client"
-	"github.com/vmware-tanzu/velero/pkg/discovery"
-	"github.com/vmware-tanzu/velero/pkg/features"
-	"github.com/vmware-tanzu/velero/pkg/itemoperation"
-	"github.com/vmware-tanzu/velero/pkg/kuberesource"
-	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
-	riav2 "github.com/vmware-tanzu/velero/pkg/plugin/velero/restoreitemaction/v2"
-	vsv1 "github.com/vmware-tanzu/velero/pkg/plugin/velero/volumesnapshotter/v1"
-	"github.com/vmware-tanzu/velero/pkg/podvolume"
-	uploadermocks "github.com/vmware-tanzu/velero/pkg/podvolume/mocks"
-	riav1 "github.com/vmware-tanzu/velero/pkg/restore/actions"
-	"github.com/vmware-tanzu/velero/pkg/test"
-	"github.com/vmware-tanzu/velero/pkg/types"
-	"github.com/vmware-tanzu/velero/pkg/util/kube"
-	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
-	. "github.com/vmware-tanzu/velero/pkg/util/results"
+	"github.com/velero-io/velero/internal/volume"
+	velerov1api "github.com/velero-io/velero/pkg/apis/velero/v1"
+	"github.com/velero-io/velero/pkg/archive"
+	"github.com/velero-io/velero/pkg/builder"
+	"github.com/velero-io/velero/pkg/client"
+	"github.com/velero-io/velero/pkg/discovery"
+	"github.com/velero-io/velero/pkg/features"
+	"github.com/velero-io/velero/pkg/itemoperation"
+	"github.com/velero-io/velero/pkg/kuberesource"
+	"github.com/velero-io/velero/pkg/plugin/velero"
+	riav2 "github.com/velero-io/velero/pkg/plugin/velero/restoreitemaction/v2"
+	vsv1 "github.com/velero-io/velero/pkg/plugin/velero/volumesnapshotter/v1"
+	"github.com/velero-io/velero/pkg/podvolume"
+	uploadermocks "github.com/velero-io/velero/pkg/podvolume/mocks"
+	riav1 "github.com/velero-io/velero/pkg/restore/actions"
+	"github.com/velero-io/velero/pkg/test"
+	"github.com/velero-io/velero/pkg/types"
+	"github.com/velero-io/velero/pkg/util/kube"
+	kubeutil "github.com/velero-io/velero/pkg/util/kube"
+	. "github.com/velero-io/velero/pkg/util/results"
 )
 
 func TestRestorePVWithVolumeInfo(t *testing.T) {
@@ -4411,6 +4411,8 @@ func TestRestoreInplaceExistingPodWithPodVolumeBackups(t *testing.T) {
 				require.Len(t, errs.Namespaces["ns-1"], 1)
 				assert.Contains(t, errs.Namespaces["ns-1"][0], "in-place restore pre-flight check failed")
 				assert.Contains(t, errs.Namespaces["ns-1"][0], "pod ns-1/pod-1 already exists")
+				// The restore of the pod stops at the pre-flight failure.
+				assert.Empty(t, warnings.Namespaces)
 			} else {
 				assert.Empty(t, errs.Namespaces)
 			}
@@ -4424,6 +4426,96 @@ func TestRestoreInplaceExistingPodWithPodVolumeBackups(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRestoreExistingPVCWithSnapshot verifies that restoring onto an existing
+// PVC whose volume was backed up by a snapshot warns that the volume data is
+// not restored, while volumes restored through PodVolumeRestores do not.
+func TestRestoreExistingPVCWithSnapshot(t *testing.T) {
+	info := func(method volume.Method, moved bool) map[string]volume.BackupVolumeInfo {
+		return map[string]volume.BackupVolumeInfo{
+			"pv-1": {PVCNamespace: "ns-1", PVCName: "pvc-1", PVName: "pv-1", BackupMethod: method, SnapshotDataMoved: moved},
+		}
+	}
+	inplace := defaultRestore().ExistingVolumeDataPolicy(string(velerov1api.VolumeDataPolicyTypeFull)).Result()
+
+	tests := []struct {
+		name        string
+		restore     *velerov1api.Restore
+		volumeInfos map[string]volume.BackupVolumeInfo
+		wantWarning bool
+	}{
+		{"CSI snapshot without data move", defaultRestore().Result(), info(volume.CSISnapshot, false), true},
+		{"CSI snapshot without data move, in-place", inplace, info(volume.CSISnapshot, false), true},
+		{"CSI snapshot with data move", defaultRestore().Result(), info(volume.CSISnapshot, true), true},
+		{"native snapshot", defaultRestore().Result(), info(volume.NativeSnapshot, false), false},
+		{"pod volume backup, in-place", inplace, info(volume.PodVolumeBackup, false), false},
+		{"no backup volume info", defaultRestore().Result(), nil, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+
+			existing := builder.ForPersistentVolumeClaim("ns-1", "pvc-1").VolumeName("pv-1").StorageClass("changed").Result()
+			h.AddItems(t, test.PVCs(existing))
+
+			warnings, errs := h.restorer.Restore(
+				&Request{
+					Log:     h.log,
+					Restore: tc.restore,
+					Backup:  defaultBackup().Result(),
+					BackupReader: test.NewTarWriter(t).
+						AddItems("persistentvolumeclaims", builder.ForPersistentVolumeClaim("ns-1", "pvc-1").VolumeName("pv-1").Result()).
+						Done(),
+					BackupVolumeInfoMap: tc.volumeInfos,
+				},
+				nil,
+				nil,
+			)
+
+			assert.Empty(t, errs.Namespaces)
+			if tc.wantWarning {
+				require.Len(t, warnings.Namespaces["ns-1"], 2)
+				assert.Contains(t, warnings.Namespaces["ns-1"][0], "its backed-up volume data will not be restored to it")
+			} else {
+				require.Len(t, warnings.Namespaces["ns-1"], 1)
+			}
+			assert.Contains(t, warnings.Namespaces["ns-1"][len(warnings.Namespaces["ns-1"])-1], "already exists")
+		})
+	}
+}
+
+// TestRestoreExistingPVWithNativeSnapshot verifies that restoring onto an existing
+// PV whose volume was backed up by a native snapshot warns that the volume data is
+// not restored.
+func TestRestoreExistingPVWithNativeSnapshot(t *testing.T) {
+	h := newHarness(t)
+
+	existing := builder.ForPersistentVolume("pv-1").ReclaimPolicy(corev1api.PersistentVolumeReclaimRetain).StorageClass("changed").Result()
+	h.AddItems(t, test.PVs(existing))
+
+	warnings, errs := h.restorer.Restore(
+		&Request{
+			Log:     h.log,
+			Restore: defaultRestore().Result(),
+			Backup:  defaultBackup().Result(),
+			BackupReader: test.NewTarWriter(t).
+				AddItems("persistentvolumes", builder.ForPersistentVolume("pv-1").ReclaimPolicy(corev1api.PersistentVolumeReclaimRetain).Result()).
+				Done(),
+			BackupVolumeInfoMap: map[string]volume.BackupVolumeInfo{
+				"pv-1": {PVName: "pv-1", BackupMethod: volume.NativeSnapshot},
+			},
+			RestoreVolumeInfoTracker: volume.NewRestoreVolInfoTracker(defaultRestore().Result(), h.log, test.NewFakeControllerRuntimeClient(t)),
+		},
+		nil,
+		nil,
+	)
+
+	assert.Empty(t, errs.Cluster)
+	require.Len(t, warnings.Cluster, 2)
+	assert.Contains(t, warnings.Cluster[0], "PV pv-1 already exists, its backed-up volume data will not be restored to it")
+	assert.Contains(t, warnings.Cluster[1], "already exists")
 }
 
 func TestResetMetadata(t *testing.T) {

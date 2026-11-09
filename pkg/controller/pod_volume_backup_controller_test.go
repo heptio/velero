@@ -46,16 +46,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	velerov2alpha1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
-	"github.com/vmware-tanzu/velero/pkg/builder"
-	"github.com/vmware-tanzu/velero/pkg/datapath"
-	datapathmocks "github.com/vmware-tanzu/velero/pkg/datapath/mocks"
-	"github.com/vmware-tanzu/velero/pkg/exposer"
-	"github.com/vmware-tanzu/velero/pkg/metrics"
-	velerotest "github.com/vmware-tanzu/velero/pkg/test"
-	"github.com/vmware-tanzu/velero/pkg/uploader"
-	"github.com/vmware-tanzu/velero/pkg/util/kube"
+	velerov1api "github.com/velero-io/velero/pkg/apis/velero/v1"
+	velerov2alpha1api "github.com/velero-io/velero/pkg/apis/velero/v2alpha1"
+	"github.com/velero-io/velero/pkg/builder"
+	"github.com/velero-io/velero/pkg/datapath"
+	datapathmocks "github.com/velero-io/velero/pkg/datapath/mocks"
+	"github.com/velero-io/velero/pkg/exposer"
+	"github.com/velero-io/velero/pkg/metrics"
+	velerotest "github.com/velero-io/velero/pkg/test"
+	"github.com/velero-io/velero/pkg/uploader"
+	"github.com/velero-io/velero/pkg/util/kube"
 )
 
 const pvbName = "pvb-1"
@@ -331,7 +331,7 @@ func TestPVBReconcile(t *testing.T) {
 			pvb:            pvbBuilder().Finalizers([]string{PodVolumeFinalizer}).Node("test-node").Result(),
 			constrained:    true,
 			expected:       pvbBuilder().Finalizers([]string{PodVolumeFinalizer}).Result(),
-			expectedResult: &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:        "new pvb but accept failed",
@@ -398,7 +398,7 @@ func TestPVBReconcile(t *testing.T) {
 			pvb:             pvbBuilder().Phase(velerov1api.PodVolumeBackupPhasePrepared).Finalizers([]string{PodVolumeFinalizer}).Node("test-node").Result(),
 			needMockExposer: true,
 			dataMgr:         datapath.NewManager(0),
-			expectedResult:  &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult:  &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:            "data path init error",
@@ -414,7 +414,7 @@ func TestPVBReconcile(t *testing.T) {
 			needMockExposer: true,
 			needErrs:        []bool{false, false, true, false},
 			expected:        pvbBuilder().Phase(velerov1api.PodVolumeBackupPhasePrepared).Finalizers([]string{PodVolumeFinalizer}).Result(),
-			expectedResult:  &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult:  &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:            "data path start error",

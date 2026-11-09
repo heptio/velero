@@ -19,7 +19,7 @@ package collections
 import (
 	"strings"
 
-	"github.com/vmware-tanzu/velero/internal/resourcepolicies"
+	"github.com/velero-io/velero/internal/resourcepolicies"
 
 	"github.com/cockroachdb/errors"
 	"github.com/gobwas/glob"
@@ -28,11 +28,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"github.com/vmware-tanzu/velero/pkg/discovery"
-	"github.com/vmware-tanzu/velero/pkg/kuberesource"
-	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
-	"github.com/vmware-tanzu/velero/pkg/util/wildcard"
+	velerov1api "github.com/velero-io/velero/pkg/apis/velero/v1"
+	"github.com/velero-io/velero/pkg/discovery"
+	"github.com/velero-io/velero/pkg/kuberesource"
+	"github.com/velero-io/velero/pkg/util/boolptr"
+	"github.com/velero-io/velero/pkg/util/wildcard"
 )
 
 type globStringSet struct {
@@ -274,7 +274,7 @@ func GetResourceIncludesExcludes(helper discovery.Helper, includes, excludes []s
 			if err != nil {
 				// If we can't resolve it, return it as-is. This prevents the generated
 				// includes-excludes list from including *everything*, if none of the includes
-				// can be resolved. ref. https://github.com/vmware-tanzu/velero/issues/2461
+				// can be resolved. ref. https://github.com/velero-io/velero/issues/2461
 				return item
 			}
 

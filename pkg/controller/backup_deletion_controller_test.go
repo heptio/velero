@@ -44,21 +44,21 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/vmware-tanzu/velero/internal/volume"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	pkgbackup "github.com/vmware-tanzu/velero/pkg/backup"
-	"github.com/vmware-tanzu/velero/pkg/builder"
-	"github.com/vmware-tanzu/velero/pkg/metrics"
-	persistencemocks "github.com/vmware-tanzu/velero/pkg/persistence/mocks"
-	"github.com/vmware-tanzu/velero/pkg/plugin/clientmgmt"
-	pluginmocks "github.com/vmware-tanzu/velero/pkg/plugin/mocks"
-	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
-	"github.com/vmware-tanzu/velero/pkg/plugin/velero/mocks"
-	"github.com/vmware-tanzu/velero/pkg/repository"
-	repomanager "github.com/vmware-tanzu/velero/pkg/repository/manager"
-	repomocks "github.com/vmware-tanzu/velero/pkg/repository/mocks"
-	repotypes "github.com/vmware-tanzu/velero/pkg/repository/types"
-	velerotest "github.com/vmware-tanzu/velero/pkg/test"
+	"github.com/velero-io/velero/internal/volume"
+	velerov1api "github.com/velero-io/velero/pkg/apis/velero/v1"
+	pkgbackup "github.com/velero-io/velero/pkg/backup"
+	"github.com/velero-io/velero/pkg/builder"
+	"github.com/velero-io/velero/pkg/metrics"
+	persistencemocks "github.com/velero-io/velero/pkg/persistence/mocks"
+	"github.com/velero-io/velero/pkg/plugin/clientmgmt"
+	pluginmocks "github.com/velero-io/velero/pkg/plugin/mocks"
+	"github.com/velero-io/velero/pkg/plugin/velero"
+	"github.com/velero-io/velero/pkg/plugin/velero/mocks"
+	"github.com/velero-io/velero/pkg/repository"
+	repomanager "github.com/velero-io/velero/pkg/repository/manager"
+	repomocks "github.com/velero-io/velero/pkg/repository/mocks"
+	repotypes "github.com/velero-io/velero/pkg/repository/types"
+	velerotest "github.com/velero-io/velero/pkg/test"
 )
 
 type backupDeletionControllerTestData struct {
@@ -292,7 +292,7 @@ func TestBackupDeletionControllerReconcile(t *testing.T) {
 
 		// Clear out resource labels to make sure the controller adds them and does not
 		// panic when encountering a nil Labels map
-		// (https://github.com/vmware-tanzu/velero/issues/1546)
+		// (https://github.com/velero-io/velero/issues/1546)
 		input.Labels = nil
 
 		backup := builder.ForBackup(velerov1api.DefaultNamespace, "foo").Result()
@@ -595,7 +595,7 @@ func TestBackupDeletionControllerReconcile(t *testing.T) {
 		input := defaultTestDbr()
 		// Clear out resource labels to make sure the controller adds them and does not
 		// panic when encountering a nil Labels map
-		// (https://github.com/vmware-tanzu/velero/issues/1546)
+		// (https://github.com/velero-io/velero/issues/1546)
 		input.Labels = nil
 
 		location := &velerov1api.BackupStorageLocation{
@@ -680,7 +680,7 @@ func TestBackupDeletionControllerReconcile(t *testing.T) {
 		input := defaultTestDbr()
 		// Clear out resource labels to make sure the controller adds them and does not
 		// panic when encountering a nil Labels map
-		// (https://github.com/vmware-tanzu/velero/issues/1546)
+		// (https://github.com/velero-io/velero/issues/1546)
 		input.Labels = nil
 
 		location := &velerov1api.BackupStorageLocation{
@@ -1211,6 +1211,60 @@ func TestDeleteMovedSnapshots(t *testing.T) {
 					assert.EqualError(t, errs[i], test.expected[i])
 				}
 			}
+		})
+	}
+}
+
+func TestIsTarballNotFoundError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil error", nil, false},
+		{"generic not found", errors.New("not found"), true},
+		{"generic does not exist", errors.New("does not exist"), true},
+		{"aws s3 nosuchkey", errors.New("nosuchkey"), true},
+		{"azure blobnotfound", errors.New("blobnotfound"), true},
+		{"gcs objectnotexist", errors.New("objectnotexist"), true},
+		{"gcs object doesn't exist", errors.New("storage: object doesn't exist"), true},
+		{
+			"gcs object doesn't exist in wrapped error",
+			errors.New("error downloading backup tarball, CSI snapshot cleanup was skipped: rpc error: code = Unknown desc = storage: object doesn't exist"),
+			true,
+		},
+		{"transient network error", errors.New("connection refused"), false},
+		{"auth failure", errors.New("access denied"), false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isTarballNotFoundError(tc.err))
+		})
+	}
+}
+
+func TestDeletionRejectsUnsupportedUploaderBeforeMutation(t *testing.T) {
+	for _, uploaderType := range []string{"unsupported", "restic", ""} {
+		t.Run(fmt.Sprintf("uploader=%q", uploaderType), func(t *testing.T) {
+			dbr := defaultTestDbr()
+			backup := builder.ForBackup(dbr.Namespace, dbr.Spec.BackupName).
+				StorageLocation("location-1").Phase(velerov1api.BackupPhaseCompleted).Result()
+			pvb := builder.ForPodVolumeBackup(dbr.Namespace, "pvb").
+				UploaderType(uploaderType).
+				ObjectMeta(builder.WithLabels(velerov1api.BackupNameLabel, backup.Name)).Result()
+			td := setupBackupDeletionControllerTest(t, dbr, backup, defaultLocation(dbr.Namespace), pvb)
+
+			_, err := td.controller.Reconcile(t.Context(), td.req)
+			require.NoError(t, err)
+			require.NoError(t, td.fakeClient.Get(t.Context(), client.ObjectKeyFromObject(dbr), dbr))
+			require.Equal(t, velerov1api.DeleteBackupRequestPhaseProcessed, dbr.Status.Phase)
+			require.Len(t, dbr.Status.Errors, 1)
+			require.Contains(t, dbr.Status.Errors[0], "invalid uploader type")
+			require.NoError(t, td.fakeClient.Get(t.Context(), client.ObjectKeyFromObject(backup), backup))
+			require.Equal(t, velerov1api.BackupPhaseCompleted, backup.Status.Phase)
+			require.NoError(t, td.fakeClient.Get(t.Context(), client.ObjectKeyFromObject(pvb), pvb))
+			require.Empty(t, td.backupStore.Calls)
 		})
 	}
 }
