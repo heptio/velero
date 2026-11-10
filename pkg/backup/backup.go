@@ -1259,6 +1259,14 @@ func (kb *kubernetesBackupper) FinalizeBackup(
 		return err
 	}
 
+	// Write the finalized item outcomes only after the archive is complete. If
+	// the tarball fails, the stored artifact stays unfinalized, which is the
+	// truthful state: the finalize pass did not commit the post-operation items
+	// the rows describe.
+	if err := finalizeItemOutcomes(log, backupRequest, volumeInfos, asyncBIAOperations, backupStore); err != nil {
+		return err
+	}
+
 	log.WithField("progress", "").Infof("Updated a total of %d items", backupRequest.BackedUpItems.Len())
 
 	return nil
