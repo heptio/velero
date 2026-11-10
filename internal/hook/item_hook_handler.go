@@ -244,7 +244,7 @@ func (h *DefaultItemHookHandler) HandleHooks(
 			hookLog.WithError(errTracker).Warn("Error recording the hook in hook tracker")
 		}
 
-		if errExec != nil && hookFromAnnotations.OnError == velerov1api.HookErrorModeFail {
+		if errExec != nil && effectiveBackupHookErrorMode(hookFromAnnotations.OnError) == velerov1api.HookErrorModeFail {
 			return errExec
 		}
 
@@ -287,7 +287,7 @@ func (h *DefaultItemHookHandler) HandleHooks(
 						if err != nil {
 							hookLog.WithError(err).Error("Error executing hook")
 							hookFailed = true
-							if hook.Exec.OnError == velerov1api.HookErrorModeFail {
+							if effectiveBackupHookErrorMode(hook.Exec.OnError) == velerov1api.HookErrorModeFail {
 								modeFailError = err
 							}
 						}
@@ -302,6 +302,17 @@ func (h *DefaultItemHookHandler) HandleHooks(
 	}
 
 	return modeFailError
+}
+
+// effectiveBackupHookErrorMode returns the error mode that applies to a backup hook.
+// An omitted or unrecognized mode defaults to Fail, matching the documented behavior
+// for backup hooks and the default applied by podexec.ExecutePodCommand.
+// Restore hooks have a different default (Continue) and must not use this helper.
+func effectiveBackupHookErrorMode(mode velerov1api.HookErrorMode) velerov1api.HookErrorMode {
+	if mode == velerov1api.HookErrorModeContinue || mode == velerov1api.HookErrorModeFail {
+		return mode
+	}
+	return velerov1api.HookErrorModeFail
 }
 
 // NoOpItemHookHandler is the an itemHookHandler for the Finalize controller where hooks don't run
