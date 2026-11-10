@@ -83,3 +83,13 @@ func TestReportedByJSONShape(t *testing.T) {
 	assert.JSONEq(t, want, string(got))
 	assert.NotContains(t, string(got), `"parent"`)
 }
+
+func TestCollectEnabled(t *testing.T) {
+	assert.True(t, CollectEnabled(nil, true))
+	assert.False(t, CollectEnabled(nil, false))
+
+	truthy := true
+	falsy := false
+	assert.True(t, CollectEnabled(&truthy, false))
+	assert.False(t, CollectEnabled(&falsy, true))
+}
