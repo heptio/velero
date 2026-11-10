@@ -19,6 +19,7 @@ package backup
 import (
 	"testing"
 
+	"github.com/cockroachdb/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -258,4 +259,25 @@ func unstructuredFor(t *testing.T, obj interface{}) *unstructured.Unstructured {
 	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	require.NoError(t, err)
 	return &unstructured.Unstructured{Object: data}
+}
+
+// The archive write happens after Observe. A write failure means the item is
+// not in the backup, so the row must not keep the Succeeded it was minted at.
+func TestRecordArchiveFailureRecordsFailedRow(t *testing.T) {
+	recorder := itemoutcome.NewRecorder()
+	ib := &itemBackupper{backupRequest: &Request{ItemOutcomes: recorder}}
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Pod",
+		"metadata":   map[string]any{"namespace": "ns", "name": "pod1"},
+	}}
+
+	ib.recordArchiveFailure(obj, schema.GroupResource{Resource: "pods"}, errors.New("archive write failed"))
+
+	items := recorder.Result().Items
+	require.Len(t, items, 1)
+	assert.Equal(t, itemoutcome.OutcomeFailed, items[0].Outcome)
+	require.Len(t, items[0].Messages, 1)
+	assert.Contains(t, items[0].Messages[0], "failed to write item to backup archive")
+	assert.Contains(t, items[0].Messages[0], "archive write failed")
 }

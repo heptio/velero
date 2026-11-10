@@ -93,3 +93,18 @@ func TestCollectEnabled(t *testing.T) {
 	assert.True(t, CollectEnabled(&truthy, false))
 	assert.False(t, CollectEnabled(&falsy, true))
 }
+func TestBackupNameJSONShape(t *testing.T) {
+	items := &ItemOutcomes{
+		SchemaVersion: SchemaVersion,
+		Kind:          KindBackup,
+		BackupName:    "backup-1",
+		Finalized:     true,
+		Items:         []ItemOutcome{},
+	}
+
+	got, err := json.Marshal(items)
+	require.NoError(t, err)
+
+	want := `{"schemaVersion":"v1","kind":"backup","backupName":"backup-1","finalized":true,"items":[]}`
+	assert.JSONEq(t, want, string(got))
+}

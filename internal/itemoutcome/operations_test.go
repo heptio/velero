@@ -186,3 +186,23 @@ func TestApplyOperationsKeepsTerminalErrorWhenMessagesAreCapped(t *testing.T) {
 	assert.Contains(t, msgs, "snapshot failed")
 	assert.Equal(t, "... and 2 more", msgs[len(msgs)-1])
 }
+
+func TestApplyOperationsPreservesHiddenCountWhenMessagesAreCapped(t *testing.T) {
+	items := &ItemOutcomes{
+		SchemaVersion: SchemaVersion,
+		Items: []ItemOutcome{{
+			GroupResource: pvcGR,
+			Namespace:     "ns",
+			Name:          "disk1",
+			Outcome:       OutcomeSucceeded,
+			Messages:      []string{"m1", "m2", "m3", "m4", "... and 8 more"},
+		}},
+	}
+
+	ApplyOperations(items, []OperationResult{
+		operation(pvcGR, "ns", "disk1", OperationFailed, "snapshot failed"),
+	})
+
+	assert.Equal(t, []string{"m1", "m2", "m3", "snapshot failed", "... and 9 more"},
+		items.Items[0].Messages)
+}

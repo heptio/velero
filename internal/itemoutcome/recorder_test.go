@@ -372,3 +372,55 @@ func TestRekeyItemSkipClearsVolumeMarker(t *testing.T) {
 }
 
 // The reportedBy contract is a list now; old single-field edges are gone.
+
+func TestAppendTerminalMessagePreservesHiddenCount(t *testing.T) {
+	tests := []struct {
+		name     string
+		msgs     []string
+		terminal string
+		want     []string
+	}{
+		{
+			name:     "marker count includes the displaced message",
+			msgs:     []string{"m1", "m2", "m3", "m4", "... and 8 more"},
+			terminal: "terminal",
+			want:     []string{"m1", "m2", "m3", "terminal", "... and 9 more"},
+		},
+		{
+			name:     "under the cap with a marker",
+			msgs:     []string{"m1", "... and 8 more"},
+			terminal: "terminal",
+			want:     []string{"m1", "terminal", "... and 8 more"},
+		},
+		{
+			name:     "no marker still keeps the terminal",
+			msgs:     []string{"m1", "m2", "m3", "m4", "m5"},
+			terminal: "terminal",
+			want:     []string{"m1", "m2", "m3", "terminal", "... and 2 more"},
+		},
+		{
+			name:     "a second terminal accumulates the hidden count",
+			msgs:     []string{"m1", "m2", "m3", "op error", "... and 9 more"},
+			terminal: "volume error",
+			want:     []string{"m1", "m2", "m3", "volume error", "... and 10 more"},
+		},
+		{
+			name:     "terminal already present is not duplicated",
+			msgs:     []string{"m1", "terminal", "... and 8 more"},
+			terminal: "terminal",
+			want:     []string{"m1", "terminal", "... and 8 more"},
+		},
+		{
+			name:     "exactly fits without a marker",
+			msgs:     []string{"m1", "m2", "m3", "m4"},
+			terminal: "terminal",
+			want:     []string{"m1", "m2", "m3", "m4", "terminal"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, appendTerminalMessage(tc.msgs, tc.terminal))
+		})
+	}
+}
