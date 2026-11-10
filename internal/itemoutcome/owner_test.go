@@ -49,7 +49,7 @@ func pvcWithOwner(apiVersion, kind, name string, controller *bool) *corev1api.Pe
 	return p
 }
 
-func TestReportedByFromOwnerReferenceUsesControllerReference(t *testing.T) {
+func TestOwnerFromOwnerReferenceUsesControllerReference(t *testing.T) {
 	resolver := ownerResolverFunc(func(gvk schema.GroupVersionKind) (schema.GroupVersionResource, metav1.APIResource, error) {
 		assert.Equal(t, schema.GroupVersionKind{Group: "cdi.kubevirt.io", Version: "v1beta1", Kind: "DataVolume"}, gvk)
 		return schema.GroupVersionResource{Group: "cdi.kubevirt.io", Version: "v1beta1", Resource: "datavolumes"},
@@ -61,19 +61,19 @@ func TestReportedByFromOwnerReferenceUsesControllerReference(t *testing.T) {
 		Namespace:     "ns1",
 		Name:          "disk1",
 	}
-	reporter, ok := ReportedByFromOwnerReference(pvcWithOwner("cdi.kubevirt.io/v1beta1", "DataVolume", "disk1", ptr.To(true)), item, resolver)
+	owner, ok := OwnerFromOwnerReference(pvcWithOwner("cdi.kubevirt.io/v1beta1", "DataVolume", "disk1", ptr.To(true)), item, resolver)
 
 	require.True(t, ok)
 	assert.Equal(t, velero.ResourceIdentifier{
 		GroupResource: schema.GroupResource{Group: "cdi.kubevirt.io", Resource: "datavolumes"},
 		Namespace:     "ns1",
 		Name:          "disk1",
-	}, reporter)
+	}, owner)
 }
 
 // A cluster-scoped owner is not in the item's namespace, so inheriting it would
 // name an item that cannot exist.
-func TestReportedByFromOwnerReferenceLeavesClusterScopedOwnerUnnamespaced(t *testing.T) {
+func TestOwnerFromOwnerReferenceLeavesClusterScopedOwnerUnnamespaced(t *testing.T) {
 	resolver := ownerResolverFunc(func(gvk schema.GroupVersionKind) (schema.GroupVersionResource, metav1.APIResource, error) {
 		return schema.GroupVersionResource{Version: "v1", Resource: "nodes"},
 			metav1.APIResource{Name: "nodes", Namespaced: false}, nil
@@ -84,33 +84,33 @@ func TestReportedByFromOwnerReferenceLeavesClusterScopedOwnerUnnamespaced(t *tes
 		Namespace:     "ns1",
 		Name:          "pod1",
 	}
-	reporter, ok := ReportedByFromOwnerReference(pvcWithOwner("v1", "Node", "node1", ptr.To(true)), item, resolver)
+	owner, ok := OwnerFromOwnerReference(pvcWithOwner("v1", "Node", "node1", ptr.To(true)), item, resolver)
 
 	require.True(t, ok)
-	assert.Empty(t, reporter.Namespace)
-	assert.Equal(t, "node1", reporter.Name)
+	assert.Empty(t, owner.Namespace)
+	assert.Equal(t, "node1", owner.Name)
 }
 
-func TestReportedByFromOwnerReferenceSkipsUnresolvableOwner(t *testing.T) {
+func TestOwnerFromOwnerReferenceSkipsUnresolvableOwner(t *testing.T) {
 	resolver := ownerResolverFunc(func(schema.GroupVersionKind) (schema.GroupVersionResource, metav1.APIResource, error) {
 		return schema.GroupVersionResource{}, metav1.APIResource{}, assert.AnError
 	})
 
-	_, ok := ReportedByFromOwnerReference(pvcWithOwner("v1", "Node", "node1", ptr.To(true)), velero.ResourceIdentifier{}, resolver)
+	_, ok := OwnerFromOwnerReference(pvcWithOwner("v1", "Node", "node1", ptr.To(true)), velero.ResourceIdentifier{}, resolver)
 	assert.False(t, ok)
 }
 
-func TestReportedByFromOwnerReferenceIgnoresNonControllerReferences(t *testing.T) {
+func TestOwnerFromOwnerReferenceIgnoresNonControllerReferences(t *testing.T) {
 	resolver := ownerResolverFunc(func(schema.GroupVersionKind) (schema.GroupVersionResource, metav1.APIResource, error) {
 		t.Fatal("a non-controller reference must not be resolved")
 		return schema.GroupVersionResource{}, metav1.APIResource{}, nil
 	})
 
-	_, ok := ReportedByFromOwnerReference(pvcWithOwner("v1", "Node", "node1", nil), velero.ResourceIdentifier{}, resolver)
+	_, ok := OwnerFromOwnerReference(pvcWithOwner("v1", "Node", "node1", nil), velero.ResourceIdentifier{}, resolver)
 	assert.False(t, ok)
 }
 
-func TestReportedByFromOwnerReferenceRefusesSelfEdge(t *testing.T) {
+func TestOwnerFromOwnerReferenceRefusesSelfEdge(t *testing.T) {
 	resolver := ownerResolverFunc(func(schema.GroupVersionKind) (schema.GroupVersionResource, metav1.APIResource, error) {
 		return schema.GroupVersionResource{Version: "v1", Resource: "persistentvolumeclaims"},
 			metav1.APIResource{Name: "persistentvolumeclaims", Namespaced: true}, nil
@@ -121,6 +121,6 @@ func TestReportedByFromOwnerReferenceRefusesSelfEdge(t *testing.T) {
 		Namespace:     "ns1",
 		Name:          "disk1",
 	}
-	_, ok := ReportedByFromOwnerReference(pvcWithOwner("v1", "PersistentVolumeClaim", "disk1", ptr.To(true)), item, resolver)
+	_, ok := OwnerFromOwnerReference(pvcWithOwner("v1", "PersistentVolumeClaim", "disk1", ptr.To(true)), item, resolver)
 	assert.False(t, ok)
 }

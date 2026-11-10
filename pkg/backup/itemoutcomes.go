@@ -18,8 +18,9 @@ package backup
 
 import (
 	"fmt"
-	"github.com/cockroachdb/errors"
 	"strings"
+
+	"github.com/cockroachdb/errors"
 
 	"github.com/sirupsen/logrus"
 	"github.com/velero-io/velero/internal/itemoutcome"
@@ -52,19 +53,19 @@ func (ib *itemBackupper) outcomeFor(obj metav1.Object, groupResource schema.Grou
 	return ib.backupRequest.ItemOutcomes.For(newResourceIdentifier(groupResource, obj.GetNamespace(), obj.GetName()))
 }
 
-// recordOwnerReportedBy derives the item's reported-by entry from its metadata.ownerReferences
-// and records it as the floor under any edge a backup item action names. The
-// derivation itself lives in itemoutcome so it is testable without a backupper.
-func (ib *itemBackupper) recordOwnerReportedBy(metadata metav1.Object, item *itemoutcome.Item) {
+// recordOwner derives the item's controller owner from its metadata.ownerReferences
+// and records it as the only true parentage relationship. The derivation itself
+// lives in itemoutcome so it is testable without a backupper.
+func (ib *itemBackupper) recordOwner(metadata metav1.Object, item *itemoutcome.Item) {
 	if item == nil {
 		return
 	}
 
-	reporter, ok := itemoutcome.ReportedByFromOwnerReference(metadata, item.ID(), ib.discoveryHelper)
+	owner, ok := itemoutcome.OwnerFromOwnerReference(metadata, item.ID(), ib.discoveryHelper)
 	if !ok {
 		return
 	}
-	item.SetOwnerReportedBy(reporter)
+	item.SetOwner(owner)
 }
 
 func (ib *itemBackupper) trackSkippedVolumeOutcome(obj runtime.Unstructured, groupResource schema.GroupResource, approach string, reason string, byVolume bool, log logrus.FieldLogger) {

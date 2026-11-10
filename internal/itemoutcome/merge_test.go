@@ -158,8 +158,7 @@ func TestMergeHandlesNilArtifacts(t *testing.T) {
 	})
 }
 
-func TestMergeUpgradesReportSourceForSameReporter(t *testing.T) {
-	reporter := ref("pods", "ns", "plugin")
+func TestMergeKeepsExistingOwnerAndUnionsReporters(t *testing.T) {
 	dst := &ItemOutcomes{
 		SchemaVersion: SchemaVersion,
 		Items: []ItemOutcome{{
@@ -167,10 +166,8 @@ func TestMergeUpgradesReportSourceForSameReporter(t *testing.T) {
 			Namespace:     "ns",
 			Name:          "a",
 			Outcome:       OutcomeSucceeded,
-			ReportedBy: []ReportedByRef{{
-				ItemRef: *reporter,
-				Source:  ReportSourceOwnerReference,
-			}},
+			Owner:         ref("pods", "ns", "owner"),
+			ReportedBy:    []ItemRef{*ref("pods", "ns", "reporter-a")},
 		}},
 	}
 	src := &ItemOutcomes{
@@ -180,21 +177,21 @@ func TestMergeUpgradesReportSourceForSameReporter(t *testing.T) {
 			Namespace:     "ns",
 			Name:          "a",
 			Outcome:       OutcomeSucceeded,
-			ReportedBy: []ReportedByRef{{
-				ItemRef: *reporter,
-				Source:  ReportSourceAdditionalItem,
-			}},
+			Owner:         ref("pods", "ns", "different-owner"),
+			ReportedBy:    []ItemRef{*ref("pods", "ns", "reporter-b")},
 		}},
 	}
 
 	Merge(dst, src)
 
-	require.Len(t, dst.Items[0].ReportedBy, 1)
-	assert.Equal(t, *reporter, dst.Items[0].ReportedBy[0].ItemRef)
-	assert.Equal(t, ReportSourceAdditionalItem, dst.Items[0].ReportedBy[0].Source)
+	require.NotNil(t, dst.Items[0].Owner)
+	assert.Equal(t, *ref("pods", "ns", "owner"), *dst.Items[0].Owner)
+	require.Len(t, dst.Items[0].ReportedBy, 2)
+	assert.Equal(t, "reporter-a", dst.Items[0].ReportedBy[0].Name)
+	assert.Equal(t, "reporter-b", dst.Items[0].ReportedBy[1].Name)
 }
 
-func TestMergeUnionsDistinctReporters(t *testing.T) {
+func TestMergeTakesOwnerWhenDestinationHasNone(t *testing.T) {
 	dst := &ItemOutcomes{
 		SchemaVersion: SchemaVersion,
 		Items: []ItemOutcome{{
@@ -202,10 +199,6 @@ func TestMergeUnionsDistinctReporters(t *testing.T) {
 			Namespace:     "ns",
 			Name:          "a",
 			Outcome:       OutcomeSucceeded,
-			ReportedBy: []ReportedByRef{{
-				ItemRef: *ref("pods", "ns", "owner"),
-				Source:  ReportSourceOwnerReference,
-			}},
 		}},
 	}
 	src := &ItemOutcomes{
@@ -215,20 +208,14 @@ func TestMergeUnionsDistinctReporters(t *testing.T) {
 			Namespace:     "ns",
 			Name:          "a",
 			Outcome:       OutcomeSucceeded,
-			ReportedBy: []ReportedByRef{{
-				ItemRef: *ref("pods", "ns", "plugin"),
-				Source:  ReportSourceAdditionalItem,
-			}},
+			Owner:         ref("pods", "ns", "owner"),
 		}},
 	}
 
 	Merge(dst, src)
 
-	require.Len(t, dst.Items[0].ReportedBy, 2)
-	assert.Equal(t, "plugin", dst.Items[0].ReportedBy[0].Name, "additionalItem sorts first")
-	assert.Equal(t, ReportSourceAdditionalItem, dst.Items[0].ReportedBy[0].Source)
-	assert.Equal(t, "owner", dst.Items[0].ReportedBy[1].Name)
-	assert.Equal(t, ReportSourceOwnerReference, dst.Items[0].ReportedBy[1].Source)
+	require.NotNil(t, dst.Items[0].Owner)
+	assert.Equal(t, *ref("pods", "ns", "owner"), *dst.Items[0].Owner)
 }
 
 func TestMergeItemSkipClearsVolumeMarker(t *testing.T) {

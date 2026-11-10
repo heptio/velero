@@ -21,172 +21,176 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/velero-io/velero/pkg/plugin/velero"
 )
 
-// An edge is recorded before the reportedItem is fetched or backed up, so the row it
-// mints must not claim a success nothing has established. If the reportedItem is never
-// resolved — the additional item is not found, or the reportedItem is filtered out —
-// Named is the only record that anything named it at all.
+// An owner or reporter edge is recorded before the item is fetched or backed
+// up, so the row it mints must not claim a success nothing has established.
 func TestEdgeAloneMintsNamed(t *testing.T) {
 	r := NewRecorder()
-	owner := pod("ns1", "pod1")
-	r.SetReportedBy(pvc("ns1", "data-disk"), owner)
+	reporter := pod("ns1", "pod1")
+	r.SetReportedBy(pvc("ns1", "data-disk"), reporter)
 
-	// The edge names the reportedItem; it does not invent a row for the reporter, so the
-	// reporter stays a dangling reference until something processes it.
 	result := r.Result()
 	require.Len(t, result.Items, 1)
-	reportedItem := result.Items[0]
-	assert.Equal(t, OutcomeNamed, reportedItem.Outcome)
-	require.Len(t, reportedItem.ReportedBy, 1)
-	assert.Equal(t, *newItemRef(owner), reportedItem.ReportedBy[0].ItemRef)
-	assert.Equal(t, ReportSourceAdditionalItem, reportedItem.ReportedBy[0].Source)
+	item := result.Items[0]
+	assert.Equal(t, OutcomeNamed, item.Outcome)
+	require.Len(t, item.ReportedBy, 1)
+	assert.Equal(t, *newItemRef(reporter), item.ReportedBy[0])
 }
 
 func TestReportedByRecordsEveryDistinctReporter(t *testing.T) {
 	r := NewRecorder()
-	reportedItem := pvc("ns1", "pvc1")
-	fromOwnerRef := velero.ResourceIdentifier{GroupResource: schema.GroupResource{Resource: "virtualmachines", Group: "kubevirt.io"}, Namespace: "ns1", Name: "vm1"}
-	fromAction := velero.ResourceIdentifier{GroupResource: schema.GroupResource{Resource: "virtualmachines", Group: "kubevirt.io"}, Namespace: "ns1", Name: "vm2"}
+	child := pvc("ns1", "pvc1")
+	first := pod("ns1", "pod1")
+	second := pod("ns1", "pod2")
 
-	r.SetOwnerReportedBy(reportedItem, fromOwnerRef)
-	r.SetReportedBy(reportedItem, fromAction)
+	r.SetReportedBy(child, first)
+	r.SetReportedBy(child, second)
 
 	result := r.Result()
 	require.Len(t, result.Items, 1)
 	require.Len(t, result.Items[0].ReportedBy, 2)
-	assert.Equal(t, *newItemRef(fromAction), result.Items[0].ReportedBy[0].ItemRef,
-		"additionalItem sorts first")
-	assert.Equal(t, ReportSourceAdditionalItem, result.Items[0].ReportedBy[0].Source)
-	assert.Equal(t, *newItemRef(fromOwnerRef), result.Items[0].ReportedBy[1].ItemRef)
-	assert.Equal(t, ReportSourceOwnerReference, result.Items[0].ReportedBy[1].Source)
+	assert.Equal(t, *newItemRef(first), result.Items[0].ReportedBy[0])
+	assert.Equal(t, *newItemRef(second), result.Items[0].ReportedBy[1])
 }
 
-func TestSameReporterKeepsStrongerSource(t *testing.T) {
+// The same identity can be both the controller owner and an additional-item
+// reporter. They are separate relationships and both facts must survive.
+func TestOwnerAndReportedBySameIdentityAreBothPreserved(t *testing.T) {
 	r := NewRecorder()
-	reportedItem := pvc("ns1", "pvc1")
-	reporter := velero.ResourceIdentifier{GroupResource: schema.GroupResource{Resource: "virtualmachines", Group: "kubevirt.io"}, Namespace: "ns1", Name: "vm1"}
+	child := pvc("ns1", "pvc1")
+	owner := pod("ns1", "pod1")
 
-	r.SetOwnerReportedBy(reportedItem, reporter)
-	r.SetReportedBy(reportedItem, reporter)
+	r.SetOwner(child, owner)
+	r.SetReportedBy(child, owner)
 
 	result := r.Result()
 	require.Len(t, result.Items, 1)
+	require.NotNil(t, result.Items[0].Owner)
+	assert.Equal(t, *newItemRef(owner), *result.Items[0].Owner)
 	require.Len(t, result.Items[0].ReportedBy, 1)
-	assert.Equal(t, *newItemRef(reporter), result.Items[0].ReportedBy[0].ItemRef)
-	assert.Equal(t, ReportSourceAdditionalItem, result.Items[0].ReportedBy[0].Source)
+	assert.Equal(t, *newItemRef(owner), result.Items[0].ReportedBy[0])
 }
 
-func TestOwnerReferenceCannotDowngradeAdditionalItem(t *testing.T) {
+func TestOwnerIsSeparateFromReportedBy(t *testing.T) {
 	r := NewRecorder()
-	reportedItem := pvc("ns1", "pvc1")
-	reporter := velero.ResourceIdentifier{GroupResource: schema.GroupResource{Resource: "virtualmachines", Group: "kubevirt.io"}, Namespace: "ns1", Name: "vm1"}
+	child := pvc("ns1", "pvc1")
+	owner := pod("ns1", "owner")
+	reporter := pod("ns1", "reporter")
 
-	r.SetReportedBy(reportedItem, reporter)
-	r.SetOwnerReportedBy(reportedItem, reporter)
+	r.SetOwner(child, owner)
+	r.SetReportedBy(child, reporter)
 
 	result := r.Result()
 	require.Len(t, result.Items, 1)
+	require.NotNil(t, result.Items[0].Owner)
+	assert.Equal(t, *newItemRef(owner), *result.Items[0].Owner)
 	require.Len(t, result.Items[0].ReportedBy, 1)
-	assert.Equal(t, *newItemRef(reporter), result.Items[0].ReportedBy[0].ItemRef)
-	assert.Equal(t, ReportSourceAdditionalItem, result.Items[0].ReportedBy[0].Source)
+	assert.Equal(t, *newItemRef(reporter), result.Items[0].ReportedBy[0])
 }
 
-// Duplicate claims for the same reporter collapse to one edge.
+// The controller owner is single and immutable; the first owner wins.
+func TestOwnerKeepsFirstClaim(t *testing.T) {
+	r := NewRecorder()
+	child := pvc("ns1", "pvc1")
+	first := pod("ns1", "first")
+	second := pod("ns1", "second")
 
-// Duplicate claims for the same reporter collapse to one edge.
+	r.SetOwner(child, first)
+	r.SetOwner(child, second)
+
+	result := r.Result()
+	require.Len(t, result.Items, 1)
+	require.NotNil(t, result.Items[0].Owner)
+	assert.Equal(t, *newItemRef(first), *result.Items[0].Owner)
+}
+
 func TestDuplicateReporterClaimsCollapseToOne(t *testing.T) {
-	reportedItem := pvc("ns1", "pvc1")
-	reporter := velero.ResourceIdentifier{GroupResource: schema.GroupResource{Resource: "datavolumes", Group: "cdi.kubevirt.io"}, Namespace: "ns1", Name: "dv1"}
-
 	r := NewRecorder()
-	r.SetOwnerReportedBy(reportedItem, reporter)
-	r.SetOwnerReportedBy(reportedItem, reporter)
+	child := pvc("ns1", "pvc1")
+	reporter := pod("ns1", "pod1")
+
+	r.SetReportedBy(child, reporter)
+	r.SetReportedBy(child, reporter)
 
 	result := r.Result()
 	require.Len(t, result.Items, 1)
 	require.Len(t, result.Items[0].ReportedBy, 1)
-	assert.Equal(t, *newItemRef(reporter), result.Items[0].ReportedBy[0].ItemRef)
+	assert.Equal(t, *newItemRef(reporter), result.Items[0].ReportedBy[0])
 }
 
-// Distinct equal-strength claims are all recorded, deterministically ordered.
-
-// Distinct equal-strength claims are all recorded, deterministically ordered.
 func TestEqualStrengthDistinctReportersAreBothRecorded(t *testing.T) {
-	reportedItem := pvc("ns1", "pvc1")
-	first := velero.ResourceIdentifier{GroupResource: schema.GroupResource{Resource: "datavolumes", Group: "cdi.kubevirt.io"}, Namespace: "ns1", Name: "dv1"}
-	second := velero.ResourceIdentifier{GroupResource: schema.GroupResource{Resource: "datavolumes", Group: "cdi.kubevirt.io"}, Namespace: "ns1", Name: "dv2"}
-
 	r := NewRecorder()
-	r.SetOwnerReportedBy(reportedItem, first)
-	r.SetOwnerReportedBy(reportedItem, second)
+	child := pvc("ns1", "pvc1")
+	first := pod("ns1", "pod1")
+	second := pod("ns1", "pod2")
+
+	r.SetReportedBy(child, first)
+	r.SetReportedBy(child, second)
 
 	result := r.Result()
 	require.Len(t, result.Items, 1)
 	require.Len(t, result.Items[0].ReportedBy, 2)
-	assert.Equal(t, "dv1", result.Items[0].ReportedBy[0].Name)
-	assert.Equal(t, "dv2", result.Items[0].ReportedBy[1].Name)
+	assert.Equal(t, "pod1", result.Items[0].ReportedBy[0].Name)
+	assert.Equal(t, "pod2", result.Items[0].ReportedBy[1].Name)
 }
 
-func TestReportedByEmptyWithoutReporter(t *testing.T) {
+func TestOwnerAndReportedByEmptyWithoutRelationships(t *testing.T) {
 	r := NewRecorder()
 	r.Observe(pod("ns1", "pod1"))
 
 	result := r.Result()
 	require.Len(t, result.Items, 1)
+	assert.Nil(t, result.Items[0].Owner)
 	assert.Empty(t, result.Items[0].ReportedBy)
 }
 
-func TestReportedByIsIndependentOfOutcome(t *testing.T) {
+func TestOwnerAndReportedByAreIndependentOfOutcome(t *testing.T) {
 	r := NewRecorder()
-	reporter := pod("ns1", "vm1")
-	reportedItem := pvc("ns1", "pvc1")
+	child := pvc("ns1", "pvc1")
+	owner := pod("ns1", "owner")
+	reporter := pod("ns1", "reporter")
 
-	r.Observe(reporter)
-	r.SetReportedBy(reportedItem, reporter)
-	r.Fail(reportedItem, "disk full")
-
-	result := r.Result()
-	byName := map[string]ItemOutcome{}
-	for _, item := range result.Items {
-		byName[item.Name] = item
-	}
-
-	assert.Equal(t, OutcomeSucceeded, byName["vm1"].Outcome)
-	assert.Empty(t, byName["vm1"].ReportedBy)
-	assert.Equal(t, OutcomeFailed, byName["pvc1"].Outcome)
-	require.Len(t, byName["pvc1"].ReportedBy, 1)
-	assert.Equal(t, *newItemRef(reporter), byName["pvc1"].ReportedBy[0].ItemRef)
-}
-
-// An edge is recorded before the reportedItem is fetched, so processing the reportedItem must
-// promote the edge-only row into a real verdict.
-func TestObservePromotesNamedToBackedUp(t *testing.T) {
-	r := NewRecorder()
-	reportedItem := pvc("ns1", "data-disk")
-	r.SetReportedBy(reportedItem, pod("ns1", "pod1"))
-	r.Observe(reportedItem)
-
-	result := r.Result()
-	require.Len(t, result.Items, 1)
-	assert.Equal(t, OutcomeSucceeded, result.Items[0].Outcome)
-}
-
-// A verdict recorded before the edge arrives must not be lowered to Named.
-
-// A verdict recorded before the edge arrives must not be lowered to Named.
-func TestVerdictSurvivesEdgeArrivingLater(t *testing.T) {
-	r := NewRecorder()
-	reportedItem := pvc("ns1", "data-disk")
-	r.Fail(reportedItem, "snapshot denied")
-	r.SetReportedBy(reportedItem, pod("ns1", "pod1"))
+	r.SetOwner(child, owner)
+	r.SetReportedBy(child, reporter)
+	r.Fail(child, "boom")
 
 	result := r.Result()
 	require.Len(t, result.Items, 1)
 	assert.Equal(t, OutcomeFailed, result.Items[0].Outcome)
+	require.NotNil(t, result.Items[0].Owner)
+	assert.Equal(t, *newItemRef(owner), *result.Items[0].Owner)
+	require.Len(t, result.Items[0].ReportedBy, 1)
+	assert.Equal(t, *newItemRef(reporter), result.Items[0].ReportedBy[0])
+}
+
+func TestObservePromotesNamedToBackedUp(t *testing.T) {
+	r := NewRecorder()
+	child := pvc("ns1", "pvc1")
+	reporter := pod("ns1", "pod1")
+
+	r.SetReportedBy(child, reporter)
+	r.Observe(child)
+
+	result := r.Result()
+	require.Len(t, result.Items, 1)
+	assert.Equal(t, OutcomeSucceeded, result.Items[0].Outcome)
+	require.Len(t, result.Items[0].ReportedBy, 1)
+}
+
+func TestVerdictSurvivesEdgeArrivingLater(t *testing.T) {
+	r := NewRecorder()
+	child := pvc("ns1", "pvc1")
+	reporter := pod("ns1", "pod1")
+
+	r.Fail(child, "boom")
+	r.SetReportedBy(child, reporter)
+
+	result := r.Result()
+	require.Len(t, result.Items, 1)
+	assert.Equal(t, OutcomeFailed, result.Items[0].Outcome)
+	assert.Contains(t, result.Items[0].Messages, "boom")
+	require.Len(t, result.Items[0].ReportedBy, 1)
 }
 
 func TestSetReportedByRefusesSelfEdge(t *testing.T) {
@@ -198,14 +202,23 @@ func TestSetReportedByRefusesSelfEdge(t *testing.T) {
 	assert.Empty(t, r.Result().Items)
 }
 
+func TestSetOwnerRefusesSelfEdge(t *testing.T) {
+	r := NewRecorder()
+	id := pod("ns", "pod")
+
+	r.SetOwner(id, id)
+
+	assert.Empty(t, r.Result().Items)
+}
+
 func TestRekeyReportedByFollowsReporterRename(t *testing.T) {
 	r := NewRecorder()
 	reporter := pod("ns", "reporter")
 	renamedReporter := pod("ns", "reporter-renamed")
-	reportedItem := pvc("ns", "disk")
+	child := pvc("ns", "disk")
 
-	r.SetReportedBy(reportedItem, reporter)
-	r.Observe(reportedItem)
+	r.SetReportedBy(child, reporter)
+	r.Observe(child)
 	r.Observe(reporter)
 	r.For(reporter).Rekey(renamedReporter)
 	r.Observe(renamedReporter)
@@ -225,15 +238,15 @@ func TestRekeyReportedByFollowsReporterRename(t *testing.T) {
 func TestRekeyResolvesChildRenameForReportedBy(t *testing.T) {
 	r := NewRecorder()
 	reporter := pod("ns", "reporter")
-	reportedItem := pvc("ns", "disk")
+	child := pvc("ns", "disk")
 	renamedChild := pvc("ns", "disk-generated")
 
-	r.SetReportedBy(reportedItem, reporter)
-	r.Observe(reportedItem)
-	r.For(reportedItem).Rekey(renamedChild)
+	r.SetReportedBy(child, reporter)
+	r.Observe(child)
+	r.For(child).Rekey(renamedChild)
 
-	// A later edge still names the pre-rename reportedItem identity.
-	r.SetReportedBy(reportedItem, reporter)
+	// A later edge still names the pre-rename child identity.
+	r.SetReportedBy(child, reporter)
 	r.Observe(renamedChild)
 
 	result := r.Result()
@@ -251,12 +264,12 @@ func TestRekeyResolvesChildRenameForReportedBy(t *testing.T) {
 func TestRekeyBeforeReportedByKeepsEdgeOnFinalRow(t *testing.T) {
 	r := NewRecorder()
 	reporter := pod("ns", "reporter")
-	reportedItem := pvc("ns", "disk")
+	child := pvc("ns", "disk")
 	renamedChild := pvc("ns", "disk-generated")
 
 	// The rename is known before the edge is written.
-	r.For(reportedItem).Rekey(renamedChild)
-	r.SetReportedBy(reportedItem, reporter)
+	r.For(child).Rekey(renamedChild)
+	r.SetReportedBy(child, reporter)
 	r.Observe(renamedChild)
 
 	result := r.Result()
@@ -271,17 +284,17 @@ func TestRekeyBeforeReportedByKeepsEdgeOnFinalRow(t *testing.T) {
 	assert.Equal(t, "reporter", byName["disk-generated"].ReportedBy[0].Name)
 }
 
-// A rekey that merges a reportedItem into its reporter's identity must not leave the
+// A rekey that merges a child into its reporter's identity must not leave the
 // merged row pointing at itself.
 func TestRekeyDropsSelfEdgeAfterMerge(t *testing.T) {
 	t.Run("destination row exists", func(t *testing.T) {
 		r := NewRecorder()
-		reportedItem := pvc("ns", "reportedItem")
+		child := pvc("ns", "child")
 		reporter := pod("ns", "reporter")
 
-		r.SetReportedBy(reportedItem, reporter)
+		r.SetReportedBy(child, reporter)
 		r.Observe(reporter)
-		r.For(reportedItem).Rekey(reporter)
+		r.For(child).Rekey(reporter)
 
 		result := r.Result()
 		require.Len(t, result.Items, 1)
@@ -291,11 +304,11 @@ func TestRekeyDropsSelfEdgeAfterMerge(t *testing.T) {
 
 	t.Run("destination row is created by the move", func(t *testing.T) {
 		r := NewRecorder()
-		reportedItem := pvc("ns", "reportedItem")
+		child := pvc("ns", "child")
 		reporter := pod("ns", "reporter")
 
-		r.SetReportedBy(reportedItem, reporter)
-		r.For(reportedItem).Rekey(reporter)
+		r.SetReportedBy(child, reporter)
+		r.For(child).Rekey(reporter)
 
 		result := r.Result()
 		require.Len(t, result.Items, 1)
@@ -305,4 +318,35 @@ func TestRekeyDropsSelfEdgeAfterMerge(t *testing.T) {
 	})
 }
 
-// The backup name is the artifact's stable operation identity.
+func TestRekeyDropsOwnerSelfEdge(t *testing.T) {
+	r := NewRecorder()
+	child := pvc("ns", "child")
+	owner := pod("ns", "owner")
+
+	r.SetOwner(child, owner)
+	r.For(child).Rekey(owner)
+
+	result := r.Result()
+	require.Len(t, result.Items, 1)
+	assert.Equal(t, "owner", result.Items[0].Name)
+	assert.Nil(t, result.Items[0].Owner)
+}
+
+func TestRekeyOwnerFollowsOwnerRename(t *testing.T) {
+	r := NewRecorder()
+	child := pvc("ns", "child")
+	owner := pod("ns", "owner")
+	renamedOwner := pod("ns", "owner-renamed")
+
+	r.SetOwner(child, owner)
+	r.For(owner).Rekey(renamedOwner)
+
+	result := r.Result()
+	byName := map[string]ItemOutcome{}
+	for _, item := range result.Items {
+		byName[item.Name] = item
+	}
+	require.Contains(t, byName, "child")
+	require.NotNil(t, byName["child"].Owner)
+	assert.Equal(t, "owner-renamed", byName["child"].Owner.Name)
+}

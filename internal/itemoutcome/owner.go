@@ -29,8 +29,8 @@ type OwnerResolver interface {
 	KindFor(input schema.GroupVersionKind) (schema.GroupVersionResource, metav1.APIResource, error)
 }
 
-// ReportedByFromOwnerReference derives an item's reported-by entry from its metadata.ownerReferences.
-func ReportedByFromOwnerReference(metadata metav1.Object, item velero.ResourceIdentifier, resolver OwnerResolver) (velero.ResourceIdentifier, bool) {
+// OwnerFromOwnerReference derives an item's controller owner from its metadata.ownerReferences.
+func OwnerFromOwnerReference(metadata metav1.Object, item velero.ResourceIdentifier, resolver OwnerResolver) (velero.ResourceIdentifier, bool) {
 	if metadata == nil || resolver == nil {
 		return velero.ResourceIdentifier{}, false
 	}

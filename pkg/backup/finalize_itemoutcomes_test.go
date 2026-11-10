@@ -115,7 +115,7 @@ func TestUpdateItemOutcomes(t *testing.T) {
 			expectedCount:   1,
 		},
 		{
-			name: "reportedBy is untouched by the overlay",
+			name: "owner is untouched by the overlay",
 			itemOutcomes: &itemoutcome.ItemOutcomes{
 				SchemaVersion: itemoutcome.SchemaVersion,
 				Items: []itemoutcome.ItemOutcome{
@@ -124,10 +124,9 @@ func TestUpdateItemOutcomes(t *testing.T) {
 						Namespace:     "ns-1",
 						Name:          "pvc-1",
 						Outcome:       itemoutcome.OutcomeSucceeded,
-						ReportedBy: []itemoutcome.ReportedByRef{{
-							ItemRef: itemoutcome.ItemRef{GroupResource: "virtualmachines.kubevirt.io", Namespace: "ns-1", Name: "vm-1"},
-							Source:  itemoutcome.ReportSourceOwnerReference,
-						}},
+						Owner: &itemoutcome.ItemRef{
+							GroupResource: "virtualmachines.kubevirt.io", Namespace: "ns-1", Name: "vm-1",
+						},
 					},
 				},
 			},
@@ -210,9 +209,9 @@ func TestUpdateItemOutcomes(t *testing.T) {
 				assert.Equal(t, outcome, byName[name].Outcome)
 			}
 
-			if tc.name == "reportedBy is untouched by the overlay" {
-				require.Len(t, byName["pvc-1"].ReportedBy, 1)
-				assert.Equal(t, "vm-1", byName["pvc-1"].ReportedBy[0].Name)
+			if tc.name == "owner is untouched by the overlay" {
+				require.NotNil(t, byName["pvc-1"].Owner)
+				assert.Equal(t, "vm-1", byName["pvc-1"].Owner.Name)
 				assert.Contains(t, byName["pvc-1"].Messages, "boom")
 			}
 		})

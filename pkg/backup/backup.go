@@ -936,7 +936,7 @@ func (kb *kubernetesBackupper) handleItemBlockPreHooks(itemBlock *BackupItemBloc
 			// This path reaches Fail directly, so resolve the owner report here too or
 			// an owned pod would appear as a root.
 			if metadata, mErr := meta.Accessor(pod.Item); mErr == nil {
-				itemBlock.itemBackupper.recordOwnerReportedBy(metadata, outcome)
+				itemBlock.itemBackupper.recordOwner(metadata, outcome)
 			}
 			outcome.Fail(fmt.Sprintf("pre hook failed: %v", err))
 		}

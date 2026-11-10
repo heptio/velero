@@ -154,30 +154,6 @@ func capMessagesWithHidden(msgs []string, hidden int) []string {
 	return shown
 }
 
-// ReportSource says where a reported-by edge came from, so a consumer can
-// tell an ownership edge that Kubernetes records on the object from an edge a
-// backup item action inferred, and can rank them accordingly.
-type ReportSource string
-
-const (
-	// ReportSourceOwnerReference is an edge taken from the item's
-	// metadata.ownerReferences. The object itself declares the relationship.
-	ReportSourceOwnerReference ReportSource = "ownerReference"
-	// ReportSourceAdditionalItem is an edge taken from a backup item action's
-	// AdditionalItems. A plugin named the item while backing up the reporter, so
-	// the plugin's view of the relationship outranks the object's own metadata.
-	ReportSourceAdditionalItem ReportSource = "additionalItem"
-)
-
-// reportSourcePrecedence ranks report sources from weakest to strongest. When two sources
-// name different reporters for one item the stronger one wins, which makes the
-// resulting tree independent of the order concurrent item blocks happen to
-// finish in.
-var reportSourcePrecedence = map[ReportSource]int{
-	ReportSourceOwnerReference: 0,
-	ReportSourceAdditionalItem: 1,
-}
-
 // VolumeResult is the outcome of backing up a volume's data, mirroring
 // volume.VolumeResult but declared here so this package owns the artifact's
 // serialized shape.
@@ -224,12 +200,20 @@ type VolumeAttempt struct {
 // ItemOutcome is the outcome of a single item in a backup.
 type ItemOutcome struct {
 	// Identity and verdict.
-	GroupResource string          `json:"groupResource"` // e.g. "deployments.apps"
-	Namespace     string          `json:"namespace,omitempty"`
-	Name          string          `json:"name"`
-	Outcome       Outcome         `json:"outcome"`
-	Messages      []string        `json:"messages,omitempty"` // errors/warnings/skip reasons attributed to this item
-	ReportedBy    []ReportedByRef `json:"reportedBy,omitempty"`
+	GroupResource string   `json:"groupResource"` // e.g. "deployments.apps"
+	Namespace     string   `json:"namespace,omitempty"`
+	Name          string   `json:"name"`
+	Outcome       Outcome  `json:"outcome"`
+	Messages      []string `json:"messages,omitempty"` // errors/warnings/skip reasons attributed to this item
+
+	// Owner is the item's controller ownerReference. It is the only true
+	// parentage relationship in the artifact.
+	Owner *ItemRef `json:"owner,omitempty"`
+
+	// ReportedBy lists items that named this item as an additional item through
+	// a backup item action. It is provenance, not parentage: direction is
+	// implementation-defined and the same identity may also appear as Owner.
+	ReportedBy []ItemRef `json:"reportedBy,omitempty"`
 
 	// SkippedByVolume records that the skip came from a volume path.
 	SkippedByVolume bool `json:"skippedByVolume,omitempty"`
@@ -248,26 +232,12 @@ type ItemRef struct {
 	Name          string `json:"name"`
 }
 
-// ReportedByRef is one reporting edge from an item to the item that reported it.
-type ReportedByRef struct {
-	ItemRef
-	Source ReportSource `json:"source"`
-}
-
 func newItemRef(id velero.ResourceIdentifier) *ItemRef {
 	return &ItemRef{
 		GroupResource: id.GroupResource.String(),
 		Namespace:     id.Namespace,
 		Name:          id.Name,
 	}
-}
-
-func newReportedByRef(id *velero.ResourceIdentifier, source ReportSource) *ReportedByRef {
-	if id == nil {
-		return nil
-	}
-	ref := newItemRef(*id)
-	return &ReportedByRef{ItemRef: *ref, Source: source}
 }
 
 // Kind identifies which operation produced an item outcomes artifact, so the

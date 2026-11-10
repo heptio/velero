@@ -98,21 +98,21 @@ func (i *Item) RecordVolumeAttempt(attempt VolumeAttempt) {
 	i.rec.RecordVolumeAttempt(i.id, attempt)
 }
 
-// SetReportedBy records that a backup item action named this item as a sub-item
-// of the reporter.
+// SetOwner records that this item names owner as its controller ownerReference.
+func (i *Item) SetOwner(owner velero.ResourceIdentifier) {
+	if i == nil {
+		return
+	}
+	i.rec.SetOwner(i.id, owner)
+}
+
+// SetReportedBy records that a backup item action named this item as an
+// additional item.
 func (i *Item) SetReportedBy(reporter velero.ResourceIdentifier) {
 	if i == nil {
 		return
 	}
 	i.rec.SetReportedBy(i.id, reporter)
-}
-
-// SetOwnerReportedBy records that this item names the owner in its owner references.
-func (i *Item) SetOwnerReportedBy(owner velero.ResourceIdentifier) {
-	if i == nil {
-		return
-	}
-	i.rec.SetOwnerReportedBy(i.id, owner)
 }
 
 // Rekey follows an item renamed by a plugin. It moves the row to the new

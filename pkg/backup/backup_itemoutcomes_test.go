@@ -89,7 +89,6 @@ func TestItemOutcomesCapture(t *testing.T) {
 	assert.Equal(t, kuberesource.Pods.String(), pvc.ReportedBy[0].GroupResource)
 	assert.Equal(t, "ns-1", pvc.ReportedBy[0].Namespace)
 	assert.Equal(t, "pod-1", pvc.ReportedBy[0].Name)
-	assert.Equal(t, itemoutcome.ReportSourceAdditionalItem, pvc.ReportedBy[0].Source)
 }
 
 // TestItemOutcomesCapturesSynchronousFailure verifies that an item whose
@@ -187,9 +186,9 @@ func TestPreHookFailureIsRecordedAsItemOutcome(t *testing.T) {
 	require.Len(t, items[0].Messages, 1)
 	assert.Contains(t, items[0].Messages[0], "pre hook boom")
 
-	require.Len(t, items[0].ReportedBy, 1)
-	assert.Equal(t, "replicasets.apps", items[0].ReportedBy[0].GroupResource)
-	assert.Equal(t, "ns", items[0].ReportedBy[0].Namespace)
-	assert.Equal(t, "rs1", items[0].ReportedBy[0].Name)
-	assert.Equal(t, itemoutcome.ReportSourceOwnerReference, items[0].ReportedBy[0].Source)
+	require.NotNil(t, items[0].Owner)
+	assert.Equal(t, "replicasets.apps", items[0].Owner.GroupResource)
+	assert.Equal(t, "ns", items[0].Owner.Namespace)
+	assert.Equal(t, "rs1", items[0].Owner.Name)
+	assert.Empty(t, items[0].ReportedBy)
 }

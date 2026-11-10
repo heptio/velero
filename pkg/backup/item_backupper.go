@@ -227,7 +227,7 @@ func (ib *itemBackupper) backupItemInternal(logger logrus.FieldLogger, obj runti
 	resourceIdentifier := newResourceIdentifier(groupResource, namespace, name)
 	outcome := ib.backupRequest.ItemOutcomes.For(resourceIdentifier)
 	outcome.Observe()
-	ib.recordOwnerReportedBy(metadata, outcome)
+	ib.recordOwner(metadata, outcome)
 
 	// failItem aggregates errs, records the failure against this item directly,
 	// and returns the aggregate for the caller to propagate. The handle is

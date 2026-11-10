@@ -49,21 +49,20 @@ func TestOutcomeLabel(t *testing.T) {
 	assert.Equal(t, "Skipped", OutcomeLabel(OutcomeSkipped))
 }
 
-func TestReportedByJSONShape(t *testing.T) {
+func TestOwnershipAndReportingJSONShape(t *testing.T) {
 	item := ItemOutcome{
 		GroupResource: "persistentvolumeclaims",
 		Namespace:     "ns",
 		Name:          "shared-pvc",
 		Outcome:       OutcomeSucceeded,
-		ReportedBy: []ReportedByRef{
-			{
-				ItemRef: ItemRef{GroupResource: "pods", Namespace: "ns", Name: "virt-launcher-a"},
-				Source:  ReportSourceAdditionalItem,
-			},
-			{
-				ItemRef: ItemRef{GroupResource: "pods", Namespace: "ns", Name: "virt-launcher-b"},
-				Source:  ReportSourceAdditionalItem,
-			},
+		Owner: &ItemRef{
+			GroupResource: "datavolumes.cdi.kubevirt.io",
+			Namespace:     "ns",
+			Name:          "shared-pvc",
+		},
+		ReportedBy: []ItemRef{
+			{GroupResource: "pods", Namespace: "ns", Name: "virt-launcher-a"},
+			{GroupResource: "pods", Namespace: "ns", Name: "virt-launcher-b"},
 		},
 	}
 
@@ -75,13 +74,15 @@ func TestReportedByJSONShape(t *testing.T) {
 		"namespace": "ns",
 		"name": "shared-pvc",
 		"outcome": "Succeeded",
+		"owner": {"groupResource": "datavolumes.cdi.kubevirt.io", "namespace": "ns", "name": "shared-pvc"},
 		"reportedBy": [
-			{"groupResource": "pods", "namespace": "ns", "name": "virt-launcher-a", "source": "additionalItem"},
-			{"groupResource": "pods", "namespace": "ns", "name": "virt-launcher-b", "source": "additionalItem"}
+			{"groupResource": "pods", "namespace": "ns", "name": "virt-launcher-a"},
+			{"groupResource": "pods", "namespace": "ns", "name": "virt-launcher-b"}
 		]
 	}`
 	assert.JSONEq(t, want, string(got))
 	assert.NotContains(t, string(got), `"parent"`)
+	assert.NotContains(t, string(got), `"source"`)
 }
 
 func TestCollectEnabled(t *testing.T) {

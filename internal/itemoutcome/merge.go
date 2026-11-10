@@ -51,6 +51,10 @@ func Merge(dst, src *ItemOutcomes) {
 		}
 		row.Messages = mergeMessages(row.Messages, item.Messages)
 		row.VolumeAttempts = dedupeVolumeAttempts(append(row.VolumeAttempts, item.VolumeAttempts...))
+		if row.Owner == nil && item.Owner != nil {
+			owner := *item.Owner
+			row.Owner = &owner
+		}
 		row.ReportedBy = mergeReportedBy(row.ReportedBy, item.ReportedBy)
 
 		if row.Volume == nil && item.Volume != nil {
@@ -62,19 +66,19 @@ func Merge(dst, src *ItemOutcomes) {
 	sortItems(dst.Items)
 }
 
-func mergeReportedBy(dst, src []ReportedByRef) []ReportedByRef {
-	merged := make(map[Key]ReportedByRef, len(dst)+len(src))
+func mergeReportedBy(dst, src []ItemRef) []ItemRef {
+	merged := make(map[Key]ItemRef, len(dst)+len(src))
 	for _, reporter := range dst {
-		merged[KeyOfRef(&reporter.ItemRef)] = reporter
+		merged[KeyOfRef(&reporter)] = reporter
 	}
 	for _, reporter := range src {
-		key := KeyOfRef(&reporter.ItemRef)
-		if existing, ok := merged[key]; ok && reportSourcePrecedence[reporter.Source] <= reportSourcePrecedence[existing.Source] {
+		key := KeyOfRef(&reporter)
+		if _, ok := merged[key]; ok {
 			continue
 		}
 		merged[key] = reporter
 	}
-	out := make([]ReportedByRef, 0, len(merged))
+	out := make([]ItemRef, 0, len(merged))
 	for _, reporter := range merged {
 		out = append(out, reporter)
 	}

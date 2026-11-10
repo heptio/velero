@@ -37,7 +37,8 @@ type itemOutcomeState struct {
 	messages        []string
 	skippedByVolume bool
 	volumeAttempts  []VolumeAttempt
-	reportedBy      map[Key]ReportedByRef
+	owner           *ItemRef
+	reportedBy      map[Key]ItemRef
 }
 
 // maxAliasDepth bounds how far a rename chain is followed, so a pathological
@@ -181,32 +182,39 @@ func (r *Recorder) RecordVolumeAttempt(id velero.ResourceIdentifier, attempt Vol
 	row.volumeAttempts = append(row.volumeAttempts, attempt)
 }
 
-// SetReportedBy records that a backup item action reported item as an additional
-// item while backing up reporter. A plugin recording the item is a stronger
-// claim than the item's own metadata.ownerReferences, so this overrides any
-// owner-reference report set by SetOwnerReportedBy.
-func (r *Recorder) SetReportedBy(item, reporter velero.ResourceIdentifier) {
-	r.setReportedBy(item, reporter, ReportSourceAdditionalItem)
+// SetOwner records item's controller ownerReference. It is the only true
+// parentage relationship in the artifact. The first owner wins: the controller
+// owner is single and immutable for a live object.
+func (r *Recorder) SetOwner(item, owner velero.ResourceIdentifier) {
+	if r == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	item = r.resolveAlias(item)
+	owner = r.resolveAlias(owner)
+	if item == owner {
+		return
+	}
+
+	row := r.edgeRowFor(item)
+	if row.owner != nil {
+		return
+	}
+	row.owner = newItemRef(owner)
 }
 
-// SetOwnerReportedBy records that the item names the owner in its metadata.ownerReferences.
-// It is a weaker claim than SetReportedBy and never displaces a report a backup
-// item action has already named.
-func (r *Recorder) SetOwnerReportedBy(item, owner velero.ResourceIdentifier) {
-	r.setReportedBy(item, owner, ReportSourceOwnerReference)
-}
-
-// setReportedBy installs the item's reported-by entry if the claim is at least as strong as the
-// one already recorded. Comparing on source rather than arrival order keeps the
-// tree stable when two item blocks process an item and its reporter concurrently:
-// whichever finishes first, the surviving edge is the same.
+// SetReportedBy records that a backup item action named item as an additional
+// item. It is provenance, not parentage; every distinct reporter is kept.
 //
 // The row is minted at OutcomeNamed rather than OutcomeSucceeded. An edge is set
 // before the item is fetched or backed up, so at this point nothing has
 // confirmed the item is in the backup; when the item is processed, Observe
 // promotes the row. A row still reading Named in a finished artifact is one a
 // plugin named and nothing resolved.
-func (r *Recorder) setReportedBy(item, reporter velero.ResourceIdentifier, source ReportSource) {
+func (r *Recorder) SetReportedBy(item, reporter velero.ResourceIdentifier) {
 	if r == nil {
 		return
 	}
@@ -217,24 +225,15 @@ func (r *Recorder) setReportedBy(item, reporter velero.ResourceIdentifier, sourc
 	item = r.resolveAlias(item)
 	reporter = r.resolveAlias(reporter)
 	if item == reporter {
-		// A self-edge would make the item its own root and run every tree walk to
-		// its depth limit. Refuse it regardless of which source produced it.
 		return
 	}
 
 	row := r.edgeRowFor(item)
 	if row.reportedBy == nil {
-		row.reportedBy = make(map[Key]ReportedByRef)
+		row.reportedBy = make(map[Key]ItemRef)
 	}
-	key := Key{
-		GroupResource: reporter.GroupResource.String(),
-		Namespace:     reporter.Namespace,
-		Name:          reporter.Name,
-	}
-	if existing, ok := row.reportedBy[key]; ok && reportSourcePrecedence[source] <= reportSourcePrecedence[existing.Source] {
-		return
-	}
-	row.reportedBy[key] = *newReportedByRef(&reporter, source)
+	ref := newItemRef(reporter)
+	row.reportedBy[KeyOfRef(ref)] = *ref
 }
 
 // rekey moves a row from old to new, merging into an existing row at the
@@ -277,15 +276,21 @@ func (r *Recorder) rekey(old, new velero.ResourceIdentifier) {
 	r.rows[new] = row
 }
 
-// dropSelfEdge removes reported-by edges that a rename has turned into
-// self-edges. A reporter may still be recorded under an identity that aliases to id.
+// dropSelfEdge removes owner/reporting edges that a rename has turned into
+// self-edges. A reporter may still be recorded under an identity that aliases
+// to id.
 func (r *Recorder) dropSelfEdge(row *itemOutcomeState, id velero.ResourceIdentifier) {
-	if row == nil || len(row.reportedBy) == 0 {
+	if row == nil {
 		return
 	}
 	idKey := Key{GroupResource: id.GroupResource.String(), Namespace: id.Namespace, Name: id.Name}
+	if row.owner != nil {
+		if KeyOfRef(row.owner) == idKey || r.resolveAlias(itemRefIdentifier(*row.owner)) == id {
+			row.owner = nil
+		}
+	}
 	for key, reporter := range row.reportedBy {
-		if key == idKey || r.resolveAlias(reportedByIdentifier(reporter)) == id {
+		if key == idKey || r.resolveAlias(itemRefIdentifier(reporter)) == id {
 			delete(row.reportedBy, key)
 		}
 	}
@@ -304,9 +309,9 @@ func (r *Recorder) resolveAlias(id velero.ResourceIdentifier) velero.ResourceIde
 	return id
 }
 
-// mergeRow folds src into dst, keeping the more significant outcome and report
-// source and appending messages. It is only used when a rename lands on a row
-// that already exists.
+// mergeRow folds src into dst, keeping the more significant outcome and the
+// existing non-nil owner. It is only used when a rename lands on a row that
+// already exists.
 func mergeRow(dst, src *itemOutcomeState) {
 	mergeSkipProvenance(dst, src)
 	if precedence[src.outcome] > precedence[dst.outcome] {
@@ -314,6 +319,10 @@ func mergeRow(dst, src *itemOutcomeState) {
 	}
 	dst.messages = mergeMessages(dst.messages, src.messages)
 	dst.volumeAttempts = dedupeVolumeAttempts(append(dst.volumeAttempts, src.volumeAttempts...))
+	if dst.owner == nil && src.owner != nil {
+		owner := *src.owner
+		dst.owner = &owner
+	}
 	mergeReportedByMaps(dst, src)
 }
 
@@ -322,10 +331,10 @@ func mergeReportedByMaps(dst, src *itemOutcomeState) {
 		return
 	}
 	if dst.reportedBy == nil {
-		dst.reportedBy = make(map[Key]ReportedByRef, len(src.reportedBy))
+		dst.reportedBy = make(map[Key]ItemRef, len(src.reportedBy))
 	}
 	for key, reporter := range src.reportedBy {
-		if existing, ok := dst.reportedBy[key]; ok && reportSourcePrecedence[reporter.Source] <= reportSourcePrecedence[existing.Source] {
+		if _, ok := dst.reportedBy[key]; ok {
 			continue
 		}
 		dst.reportedBy[key] = reporter
@@ -376,8 +385,11 @@ func (r *Recorder) Result() *ItemOutcomes {
 			SkippedByVolume: row.skippedByVolume,
 			VolumeAttempts:  dedupeVolumeAttempts(row.volumeAttempts),
 		}
+		if row.owner != nil {
+			item.Owner = r.ownerRef(row.owner, id)
+		}
 		if len(row.reportedBy) > 0 {
-			item.ReportedBy = r.reportedByRefs(row.reportedBy)
+			item.ReportedBy = r.reportedByRefs(row.reportedBy, id)
 		}
 		result.Items = append(result.Items, item)
 	}
@@ -387,18 +399,28 @@ func (r *Recorder) Result() *ItemOutcomes {
 	return result
 }
 
-func (r *Recorder) reportedByRefs(reportedBy map[Key]ReportedByRef) []ReportedByRef {
-	merged := make(map[Key]ReportedByRef, len(reportedBy))
+func (r *Recorder) ownerRef(owner *ItemRef, id velero.ResourceIdentifier) *ItemRef {
+	if owner == nil {
+		return nil
+	}
+	resolved := r.resolveAlias(itemRefIdentifier(*owner))
+	if resolved == id {
+		return nil
+	}
+	return newItemRef(resolved)
+}
+
+func (r *Recorder) reportedByRefs(reportedBy map[Key]ItemRef, id velero.ResourceIdentifier) []ItemRef {
+	merged := make(map[Key]ItemRef, len(reportedBy))
 	for _, reporter := range reportedBy {
-		resolved := r.resolveAlias(reportedByIdentifier(reporter))
-		key := Key{GroupResource: resolved.GroupResource.String(), Namespace: resolved.Namespace, Name: resolved.Name}
-		ref := ReportedByRef{ItemRef: *newItemRef(resolved), Source: reporter.Source}
-		if existing, ok := merged[key]; ok && reportSourcePrecedence[ref.Source] <= reportSourcePrecedence[existing.Source] {
+		resolved := r.resolveAlias(itemRefIdentifier(reporter))
+		if resolved == id {
 			continue
 		}
-		merged[key] = ref
+		ref := newItemRef(resolved)
+		merged[KeyOfRef(ref)] = *ref
 	}
-	refs := make([]ReportedByRef, 0, len(merged))
+	refs := make([]ItemRef, 0, len(merged))
 	for _, reporter := range merged {
 		refs = append(refs, reporter)
 	}
@@ -406,7 +428,7 @@ func (r *Recorder) reportedByRefs(reportedBy map[Key]ReportedByRef) []ReportedBy
 	return refs
 }
 
-func reportedByIdentifier(ref ReportedByRef) velero.ResourceIdentifier {
+func itemRefIdentifier(ref ItemRef) velero.ResourceIdentifier {
 	return velero.ResourceIdentifier{
 		GroupResource: schema.ParseGroupResource(ref.GroupResource),
 		Namespace:     ref.Namespace,
@@ -414,12 +436,8 @@ func reportedByIdentifier(ref ReportedByRef) velero.ResourceIdentifier {
 	}
 }
 
-func sortReportedBy(reportedBy []ReportedByRef) {
+func sortReportedBy(reportedBy []ItemRef) {
 	sort.Slice(reportedBy, func(i, j int) bool {
-		ri, rj := reportSourcePrecedence[reportedBy[i].Source], reportSourcePrecedence[reportedBy[j].Source]
-		if ri != rj {
-			return ri > rj
-		}
 		if reportedBy[i].GroupResource != reportedBy[j].GroupResource {
 			return reportedBy[i].GroupResource < reportedBy[j].GroupResource
 		}
