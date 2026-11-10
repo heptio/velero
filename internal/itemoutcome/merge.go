@@ -16,16 +16,7 @@ limitations under the License.
 
 package itemoutcome
 
-// Merge folds the rows recorded during the backup finalize pass into the
-// stored artifact.
-//
-// The first write already holds the capture-time rows. The finalize pass
-// re-processes post-operation items, so its recorder may hold rows and messages
-// that the stored artifact does not. Dropping them would lose a finalize-time
-// warning or failure while the artifact still claimed to be finalized.
-//
-// The envelope belongs to the stored artifact: Merge never changes
-// SchemaVersion, Kind, or Finalized.
+// Merge folds the finalize-pass rows into the stored artifact.
 func Merge(dst, src *ItemOutcomes) {
 	if dst == nil || src == nil || len(src.Items) == 0 {
 		return
@@ -46,14 +37,44 @@ func Merge(dst, src *ItemOutcomes) {
 		}
 
 		row := &dst.Items[idx]
+		// The finalize pass is newer than the stored artifact, so a skip it
+		// records replaces the stored marker. This lets an item-level skip clear
+		// a volume marker and lets a volume-path skip supply a marker an older
+		// artifact did not have.
+		if item.Outcome == OutcomeSkipped {
+			row.SkippedByVolume = item.SkippedByVolume
+		} else if item.SkippedByVolume {
+			row.SkippedByVolume = true
+		}
 		if precedence[item.Outcome] > precedence[row.Outcome] {
 			row.Outcome = item.Outcome
 		}
 		row.Messages = mergeMessages(row.Messages, item.Messages)
-		row.SkippedByVolume = row.SkippedByVolume || item.SkippedByVolume
+		row.ReportedBy = mergeReportedBy(row.ReportedBy, item.ReportedBy)
+
 	}
 
 	sortItems(dst.Items)
+}
+
+func mergeReportedBy(dst, src []ReportedByRef) []ReportedByRef {
+	merged := make(map[Key]ReportedByRef, len(dst)+len(src))
+	for _, reporter := range dst {
+		merged[KeyOfRef(&reporter.ItemRef)] = reporter
+	}
+	for _, reporter := range src {
+		key := KeyOfRef(&reporter.ItemRef)
+		if existing, ok := merged[key]; ok && reportSourcePrecedence[reporter.Source] <= reportSourcePrecedence[existing.Source] {
+			continue
+		}
+		merged[key] = reporter
+	}
+	out := make([]ReportedByRef, 0, len(merged))
+	for _, reporter := range merged {
+		out = append(out, reporter)
+	}
+	sortReportedBy(out)
+	return out
 }
 
 // mergeMessages combines two capped message lists without losing the count of

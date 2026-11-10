@@ -51,10 +51,10 @@ const (
 	dvGR  = "datavolumes.cdi.kubevirt.io"
 )
 
-func row(gr, ns, name string, outcome Outcome, parent *ItemRef) ItemOutcome {
+func row(gr, ns, name string, outcome Outcome, reporter *ItemRef) ItemOutcome {
 	item := ItemOutcome{GroupResource: gr, Namespace: ns, Name: name, Outcome: outcome}
-	if parent != nil {
-		item.ReportedBy = []ReportedByRef{{ItemRef: *parent, Source: ReportSourceOwnerReference}}
+	if reporter != nil {
+		item.ReportedBy = []ReportedByRef{{ItemRef: *reporter, Source: ReportSourceOwnerReference}}
 	}
 	return item
 }

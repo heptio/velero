@@ -39,7 +39,7 @@ const (
 	OutcomeFailed Outcome = "Failed"
 	// OutcomeSkipped means the item was excluded or skipped (e.g. a skipped PVC).
 	OutcomeSkipped Outcome = "Skipped"
-	// OutcomeNamed means another item named this one as its child, but nothing processed it.
+	// OutcomeNamed means another item reported this one, but nothing processed it.
 	OutcomeNamed Outcome = "Named"
 )
 
@@ -160,17 +160,17 @@ func capMessagesWithHidden(msgs []string, hidden int) []string {
 type ReportSource string
 
 const (
-	// ReportSourceOwnerReference is an edge taken from the child's
+	// ReportSourceOwnerReference is an edge taken from the item's
 	// metadata.ownerReferences. The object itself declares the relationship.
 	ReportSourceOwnerReference ReportSource = "ownerReference"
 	// ReportSourceAdditionalItem is an edge taken from a backup item action's
-	// AdditionalItems. A plugin named the child while backing up the reporter, so
+	// AdditionalItems. A plugin named the item while backing up the reporter, so
 	// the plugin's view of the relationship outranks the object's own metadata.
 	ReportSourceAdditionalItem ReportSource = "additionalItem"
 )
 
 // reportSourcePrecedence ranks report sources from weakest to strongest. When two sources
-// name different reporters for one child the stronger one wins, which makes the
+// name different reporters for one item the stronger one wins, which makes the
 // resulting tree independent of the order concurrent item blocks happen to
 // finish in.
 var reportSourcePrecedence = map[ReportSource]int{

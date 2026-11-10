@@ -929,9 +929,16 @@ func (kb *kubernetesBackupper) handleItemBlockPreHooks(itemBlock *BackupItemBloc
 			// flags it as backed up, and backupItem's already-backed-up check
 			// returns before Observe. Record the failure here, against the pod it
 			// belongs to, or the artifact would never mention it.
-			itemBlock.itemBackupper.backupRequest.ItemOutcomes.For(
+			outcome := itemBlock.itemBackupper.backupRequest.ItemOutcomes.For(
 				newResourceIdentifier(pod.Gr, pod.Item.GetNamespace(), pod.Item.GetName()),
-			).Fail(fmt.Sprintf("pre hook failed: %v", err))
+			)
+			// The normal capture path records the owner reported-by entry before Observe.
+			// This path reaches Fail directly, so resolve the owner report here too or
+			// an owned pod would appear as a root.
+			if metadata, mErr := meta.Accessor(pod.Item); mErr == nil {
+				itemBlock.itemBackupper.recordOwnerReportedBy(metadata, outcome)
+			}
+			outcome.Fail(fmt.Sprintf("pre hook failed: %v", err))
 		}
 	}
 	return successPods, failedPods, errs

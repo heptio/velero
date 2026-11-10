@@ -89,6 +89,23 @@ func (i *Item) SkipVolume(reason string) {
 	i.rec.SkipVolume(i.id, reason)
 }
 
+// SetReportedBy records that a backup item action named this item as a sub-item
+// of the reporter.
+func (i *Item) SetReportedBy(reporter velero.ResourceIdentifier) {
+	if i == nil {
+		return
+	}
+	i.rec.SetReportedBy(i.id, reporter)
+}
+
+// SetOwnerReportedBy records that this item names the owner in its owner references.
+func (i *Item) SetOwnerReportedBy(owner velero.ResourceIdentifier) {
+	if i == nil {
+		return
+	}
+	i.rec.SetOwnerReportedBy(i.id, owner)
+}
+
 // Rekey follows an item renamed by a plugin. It moves the row to the new
 // identity so later writes land on the item that was actually backed up, rather
 // than minting a second row under the new name.

@@ -27,11 +27,13 @@ import (
 	"github.com/velero-io/velero/internal/hook"
 	"github.com/velero-io/velero/internal/itemoutcome"
 	"github.com/velero-io/velero/pkg/builder"
+	"github.com/velero-io/velero/pkg/discovery/mocks"
 	"github.com/velero-io/velero/pkg/itemblock"
 	"github.com/velero-io/velero/pkg/kuberesource"
 	"github.com/velero-io/velero/pkg/plugin/velero"
 	biav2 "github.com/velero-io/velero/pkg/plugin/velero/backupitemaction/v2"
 	"github.com/velero-io/velero/pkg/test"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -83,7 +85,11 @@ func TestItemOutcomesCapture(t *testing.T) {
 	pvc, ok := byKey[kuberesource.PersistentVolumeClaims.String()+"/ns-1/pvc-1"]
 	require.True(t, ok)
 	assert.Equal(t, itemoutcome.OutcomeSucceeded, pvc.Outcome)
-	assert.Empty(t, pvc.ReportedBy)
+	require.Len(t, pvc.ReportedBy, 1)
+	assert.Equal(t, kuberesource.Pods.String(), pvc.ReportedBy[0].GroupResource)
+	assert.Equal(t, "ns-1", pvc.ReportedBy[0].Namespace)
+	assert.Equal(t, "pod-1", pvc.ReportedBy[0].Name)
+	assert.Equal(t, itemoutcome.ReportSourceAdditionalItem, pvc.ReportedBy[0].Source)
 }
 
 // TestItemOutcomesCapturesSynchronousFailure verifies that an item whose
@@ -140,17 +146,32 @@ func (h failingHookHandler) HandleHooks(
 }
 
 func TestPreHookFailureIsRecordedAsItemOutcome(t *testing.T) {
+	helper := new(mocks.Helper)
+	helper.On("KindFor", schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ReplicaSet"}).
+		Return(schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "replicasets"}, metav1.APIResource{Name: "replicasets", Namespaced: true}, nil)
+
 	recorder := itemoutcome.NewRecorder()
 	ib := &itemBackupper{
 		backupRequest:   &Request{ItemOutcomes: recorder},
 		itemHookHandler: failingHookHandler{err: errors.New("pre hook boom")},
+		discoveryHelper: helper,
 	}
 	block := NewBackupItemBlock(logrus.New(), ib)
 
 	pod := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Pod",
-		"metadata":   map[string]any{"namespace": "ns", "name": "pod1"},
+		"metadata": map[string]any{
+			"namespace": "ns",
+			"name":      "pod1",
+			"ownerReferences": []any{map[string]any{
+				"apiVersion": "apps/v1",
+				"kind":       "ReplicaSet",
+				"name":       "rs1",
+				"controller": true,
+				"uid":        "uid-1",
+			}},
+		},
 	}}
 	pods := []itemblock.ItemBlockItem{{Gr: schema.GroupResource{Resource: "pods"}, Item: pod}}
 
@@ -165,4 +186,10 @@ func TestPreHookFailureIsRecordedAsItemOutcome(t *testing.T) {
 	assert.Equal(t, "pod1", items[0].Name)
 	require.Len(t, items[0].Messages, 1)
 	assert.Contains(t, items[0].Messages[0], "pre hook boom")
+
+	require.Len(t, items[0].ReportedBy, 1)
+	assert.Equal(t, "replicasets.apps", items[0].ReportedBy[0].GroupResource)
+	assert.Equal(t, "ns", items[0].ReportedBy[0].Namespace)
+	assert.Equal(t, "rs1", items[0].ReportedBy[0].Name)
+	assert.Equal(t, itemoutcome.ReportSourceOwnerReference, items[0].ReportedBy[0].Source)
 }

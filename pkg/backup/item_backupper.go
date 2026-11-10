@@ -226,6 +226,7 @@ func (ib *itemBackupper) backupItemInternal(logger logrus.FieldLogger, obj runti
 	resourceIdentifier := newResourceIdentifier(groupResource, namespace, name)
 	outcome := ib.backupRequest.ItemOutcomes.For(resourceIdentifier)
 	outcome.Observe()
+	ib.recordOwnerReportedBy(metadata, outcome)
 
 	// failItem aggregates errs, records the failure against this item directly,
 	// and returns the aggregate for the caller to propagate. The handle is
@@ -555,7 +556,10 @@ func (ib *itemBackupper) executeActions(
 			*itemOperList = append(*itemOperList, &newOperation)
 		}
 
+		currentItemIdentifier := newResourceIdentifier(groupResource, namespace, name)
 		for _, additionalItem := range additionalItemIdentifiers {
+			ib.backupRequest.ItemOutcomes.SetReportedBy(additionalItem, currentItemIdentifier)
+
 			var itemList []itemblock.ItemBlockItem
 
 			// get item content from itemBlock if it's there to avoid the additional APIServer call
