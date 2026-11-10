@@ -24,6 +24,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSupportedSchemaVersion(t *testing.T) {
+	tests := []struct {
+		name  string
+		items *ItemOutcomes
+		want  bool
+	}{
+		{name: "nil artifact", items: nil, want: false},
+		{name: "pre-version artifact", items: &ItemOutcomes{}, want: true},
+		{name: "current version", items: &ItemOutcomes{SchemaVersion: SchemaVersion}, want: true},
+		{name: "future version", items: &ItemOutcomes{SchemaVersion: "v2"}, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.items.SupportedSchemaVersion())
+		})
+	}
+}
+
+func TestOutcomeLabel(t *testing.T) {
+	assert.Equal(t, "BackedUp", OutcomeLabel(OutcomeSucceeded))
+	assert.Equal(t, "Failed", OutcomeLabel(OutcomeFailed))
+	assert.Equal(t, "Skipped", OutcomeLabel(OutcomeSkipped))
+}
+
 func TestReportedByJSONShape(t *testing.T) {
 	item := ItemOutcome{
 		GroupResource: "persistentvolumeclaims",
