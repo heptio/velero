@@ -90,8 +90,35 @@ jobs:
         # and removes older patches of the same minor version
         # awk -F. '{if(!a[$1"."$2]++)print $1"."$2"."$NF}'
         run: |
+          set -euo pipefail
+          candidates=$(wget -q -O - "https://hub.docker.com/v2/namespaces/kindest/repositories/node/tags?page_size=50" | grep -o '"name": *"[^"]*' | grep -o '[^"]*$' | grep -v -E "alpha|beta" | grep -E "v[1-9]\.(2[5-9]|[3-9][0-9])" | awk -F. '{if(!a[$1"."$2]++)print $1"."$2"."$NF}' | sort -r | sed s/v//g)
+
+          # Docker Hub's tag listing can include tags whose manifest was never
+          # published or has since been removed (e.g. kindest/node:v1.37.1). If such
+          # a tag reaches the matrix, its job is guaranteed to fail with
+          # "manifest unknown" once helm/kind-action tries to pull it, which clogs
+          # up the e2e queue on every PR with a red job unrelated to the change
+          # under test. Test-pull each candidate's manifest here and drop any tag
+          # that isn't actually available before building the matrix.
+          valid=()
+          while IFS= read -r v; do
+            [ -z "$v" ] && continue
+            echo "Verifying kindest/node:v${v} image is available..."
+            if docker manifest inspect "kindest/node:v${v}" > /dev/null 2>&1; then
+              valid+=("$v")
+            else
+              echo "::warning::kindest/node:v${v} manifest not found on Docker Hub; excluding from e2e test matrix"
+            fi
+          done <<< "$candidates"
+
+          if [ ${#valid[@]} -eq 0 ]; then
+            echo "::warning::No kindest/node tags passed the manifest availability check; the e2e test matrix will have no Kubernetes versions to test"
+          fi
+
+          k8s_json=$(printf '%s\n' "${valid[@]+"${valid[@]}"}" | jq -R -c -s 'split("\n") | map(select(length > 0))')
+
           echo "matrix={\
-            \"k8s\":$(wget -q -O - "https://hub.docker.com/v2/namespaces/kindest/repositories/node/tags?page_size=50" | grep -o '"name": *"[^"]*' | grep -o '[^"]*$' | grep -v -E "alpha|beta" | grep -E "v[1-9]\.(2[5-9]|[3-9][0-9])" | awk -F. '{if(!a[$1"."$2]++)print $1"."$2"."$NF}' | sort -r | sed s/v//g | jq -R -c -s 'split("\n")[:-1]'),\
+            \"k8s\":${k8s_json},\
             \"labels\":[\
               \"Basic && (ClusterResource || NodePort || StorageClass)\", \
               \"ResourceFiltering && !Restic\", \
