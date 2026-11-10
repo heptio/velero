@@ -125,7 +125,7 @@ var _ = Describe("Server Status Request Reconciler", func() {
 					},
 				}).
 				Result(),
-			expectedRequeue: ctrl.Result{Requeue: false, RequeueAfter: statusRequestResyncPeriod},
+			expectedRequeue: ctrl.Result{RequeueAfter: statusRequestResyncPeriod},
 		}),
 		Entry("with phase=new will be processed and phased successfully patched", request{
 			req: statusRequestBuilder("1").
@@ -158,7 +158,7 @@ var _ = Describe("Server Status Request Reconciler", func() {
 					},
 				}).
 				Result(),
-			expectedRequeue: ctrl.Result{Requeue: false, RequeueAfter: statusRequestResyncPeriod},
+			expectedRequeue: ctrl.Result{RequeueAfter: statusRequestResyncPeriod},
 		}),
 		Entry("with phase=Processed does not get deleted if not expired", request{
 			req: statusRequestBuilder("1").
@@ -191,7 +191,7 @@ var _ = Describe("Server Status Request Reconciler", func() {
 					},
 				}).
 				Result(),
-			expectedRequeue: ctrl.Result{Requeue: false, RequeueAfter: statusRequestResyncPeriod},
+			expectedRequeue: ctrl.Result{RequeueAfter: statusRequestResyncPeriod},
 		}),
 		Entry("with phase=Processed gets deleted if expired", request{
 			req: statusRequestBuilder("1").
@@ -214,7 +214,7 @@ var _ = Describe("Server Status Request Reconciler", func() {
 				},
 			},
 			expected:        nil,
-			expectedRequeue: ctrl.Result{Requeue: false, RequeueAfter: statusRequestResyncPeriod},
+			expectedRequeue: ctrl.Result{RequeueAfter: statusRequestResyncPeriod},
 		}),
 		Entry("with invalid phase returns an error and does not requeue", request{
 			req: statusRequestBuilder("1").
@@ -237,7 +237,7 @@ var _ = Describe("Server Status Request Reconciler", func() {
 				},
 			},
 			expectedErrMsg:  "unexpected ServerStatusRequest phase",
-			expectedRequeue: ctrl.Result{Requeue: false, RequeueAfter: 0},
+			expectedRequeue: ctrl.Result{RequeueAfter: 0},
 		}),
 	)
 })

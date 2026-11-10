@@ -271,7 +271,7 @@ func (r *restoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.runValidatedRestore(restore, info, resourceModifiers, restoreResPolicies); err != nil {
 		log.WithError(err).Debug("Restore failed")
 		restore.Status.Phase = api.RestorePhaseFailed
-		restore.Status.FailureReason = err.Error()
+		restore.Status.FailureReason = fmt.Sprintf("restore execution failed: %v", err)
 		r.metrics.RegisterRestoreFailed(backupScheduleName)
 	}
 
@@ -345,7 +345,7 @@ func (r *restoreReconciler) validateAndComplete(ctx context.Context, restore *ap
 	// validate Restore Init Hook's InitContainers
 	restoreHooks, err := hook.GetRestoreHooksFromSpec(&restore.Spec.Hooks)
 	if err != nil {
-		restore.Status.ValidationErrors = append(restore.Status.ValidationErrors, err.Error())
+		restore.Status.ValidationErrors = append(restore.Status.ValidationErrors, fmt.Sprintf("invalid restore hooks: %v", err))
 	}
 	for _, resource := range restoreHooks {
 		for _, h := range resource.RestoreHooks {
@@ -353,7 +353,7 @@ func (r *restoreReconciler) validateAndComplete(ctx context.Context, restore *ap
 				for _, container := range h.Init.InitContainers {
 					err = hook.ValidateContainer(container.Raw)
 					if err != nil {
-						restore.Status.ValidationErrors = append(restore.Status.ValidationErrors, err.Error())
+						restore.Status.ValidationErrors = append(restore.Status.ValidationErrors, fmt.Sprintf("invalid init container in restore hook %q: %v", resource.Name, err))
 					}
 				}
 			}
@@ -413,7 +413,7 @@ func (r *restoreReconciler) validateAndComplete(ctx context.Context, restore *ap
 		)
 		if err != nil {
 			restore.Status.ValidationErrors = append(
-				restore.Status.ValidationErrors, err.Error(),
+				restore.Status.ValidationErrors, fmt.Sprintf("invalid restore resource policies: %v", err),
 			)
 			return backupInfo{}, nil, nil
 		}

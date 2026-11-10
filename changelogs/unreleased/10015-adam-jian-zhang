@@ -1,1 +1,0 @@
-Add fine-grained filters for restore via resource policy, introduced resourcePolicy field for restoreSpec, which contains ClusterScopedFilterPolicy and NamespacedFilterPolicy section

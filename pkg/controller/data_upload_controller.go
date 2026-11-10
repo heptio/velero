@@ -265,7 +265,7 @@ func (r *DataUploadReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 		if r.vgdpCounter != nil && r.vgdpCounter.IsConstrained(ctx, r.logger) {
 			log.Debug("Data path initiation is constrained, requeue later")
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 		}
 
 		log.Info("Data upload starting")
@@ -359,7 +359,7 @@ func (r *DataUploadReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			if err == datapath.ConcurrentLimitExceed {
 				log.Debug("Data path instance is concurrent limited requeue later")
-				return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+				return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 			} else {
 				return r.errorOut(ctx, du, err, "error to create data path", log)
 			}
@@ -391,7 +391,7 @@ func (r *DataUploadReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			log.WithError(err).Warnf("Failed to update dataupload %s to InProgress, will data path close and retry", du.Name)
 
 			r.closeDataPath(ctx, du.Name)
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 		}
 
 		if terminated {

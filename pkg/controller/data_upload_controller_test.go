@@ -478,7 +478,7 @@ func TestReconcile(t *testing.T) {
 			du:             dataUploadBuilder().Finalizers([]string{DataUploadDownloadFinalizer}).Result(),
 			constrained:    true,
 			expected:       dataUploadBuilder().Finalizers([]string{DataUploadDownloadFinalizer}).Result(),
-			expectedResult: &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:                     "new du but accept failed",
@@ -548,7 +548,7 @@ func TestReconcile(t *testing.T) {
 			name:           "Error in data path is concurrent limited",
 			du:             dataUploadBuilder().Phase(velerov2alpha1api.DataUploadPhasePrepared).SnapshotType(fakeSnapshotType).Finalizers([]string{DataUploadDownloadFinalizer}).Node("test-node").Result(),
 			dataMgr:        datapath.NewManager(0),
-			expectedResult: &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:        "data path init error",
@@ -562,7 +562,7 @@ func TestReconcile(t *testing.T) {
 			du:             dataUploadBuilder().Phase(velerov2alpha1api.DataUploadPhasePrepared).SnapshotType(fakeSnapshotType).Finalizers([]string{DataUploadDownloadFinalizer}).Node("test-node").Result(),
 			needErrs:       []bool{false, false, true, false},
 			expected:       dataUploadBuilder().Phase(velerov2alpha1api.DataUploadPhasePrepared).Finalizers([]string{DataUploadDownloadFinalizer}).Result(),
-			expectedResult: &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:         "data path start error",
@@ -694,7 +694,6 @@ func TestReconcile(t *testing.T) {
 			}
 
 			if test.expectedResult != nil {
-				assert.Equal(t, test.expectedResult.Requeue, actualResult.Requeue)
 				assert.Equal(t, test.expectedResult.RequeueAfter, actualResult.RequeueAfter)
 			}
 

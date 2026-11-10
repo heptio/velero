@@ -1,3 +1,60 @@
+## v1.18.4
+
+### Download
+https://github.com/vmware-tanzu/velero/releases/tag/v1.18.4
+
+### Container Image
+`velero/velero:v1.18.4`
+
+### Documentation
+https://velero.io/docs/v1.18/
+
+### Upgrading
+https://velero.io/docs/v1.18/upgrade-to-1.18/
+
+### All Changes
+  * Fix backup queue permanently stuck when a dequeued backup completes during the patch (#10539, @pujitha24)
+
+
+## v1.18.3
+
+### Download
+https://github.com/vmware-tanzu/velero/releases/tag/v1.18.3
+
+### Container Image
+`velero/velero:v1.18.3`
+
+### Documentation
+https://velero.io/docs/v1.18/
+
+### Upgrading
+https://velero.io/docs/v1.18/upgrade-to-1.18/
+
+### All Changes
+  * Avoid duplicated InitContainer names generated in velero install CLI. (#10396, @blackpiglet)
+  * Bound WaitRestoreExecHook polling with resourceTimeout to avoid an infinite wait when restore exec hooks never complete. (#10394, @nitishmalang)
+  * fix log format string mismatches that produce wrong or mangled output (#10392, @samay43)
+  * Skip DeleteSnapshot when ProviderSnapshotID is empty (#10381, @kaovilai)
+  * Fail backup validation when built-in data mover is requested but no node-agent pods are running (#10360, @Joeavaikath)
+  * Fix issue #10341, avoid mutating the cached node-agent LoadAffinity so the OS node selector term is not appended repeatedly to data mover pods (#10348, @shubham-pampattiwar)
+  * Fix PodVolumeBackup metadata loss on fs-backup timeout, which caused all fs-backup volumes to become unrestorable (#9999, @shubham-pampattiwar)
+  * Fix repo connection contest of the two repositories with the same storage type (#10377, @Lyndon-Li)
+  * Only sync finished backups from object storage (#10347, @chlins)
+  * Support copying namespace-scoped secrets and configmaps for backup and restore PVC provisioning to enable datamover backup/restore of encrypted CSI volumes (#10335, @shubham-pampattiwar)
+  * Remove PVC and PV inclusion check during creating PVR. (#10319, @blackpiglet)
+  * Fix a potential deadlock when resultsLock is held by the informer but blocked on resChan because the early quit of RestorePodVolumes (#10263, @Lyndon-Li)
+  * Fix restore-wait init container ignoring pod-level securityContext, falling back to hardcoded runAsUser 1000 instead of the workload's own uid/gid, causing fs-backup restores to deadlock at Init:0/1 on owner-restricted volumes (#10224, @kaovilai)
+  * Add use guide for restore fine-grained filters via resource policy (#10164, @adam-jian-zhang)
+  * Add restore.velero.io/must-include-additional-items so RestoreItemActions can opt in to bypassing global restore filters for AdditionalItems (mirrors the backup-side must-include annotation; no default behavior change for existing restores/plugins). Stop force-including VolumeSnapshotContents via resourceMustHave on every restore; CSI VolumeSnapshot/PVC RestoreItemActions now set restore.velero.io/must-include-additional-items so bound snapshot dependencies are restored only when their parent is restored (fixes #9957) (#10101, @adam-jian-zhang)
+  * User guide for backup fine-grained filters via resource policy, and add set based label selectors for fine-grained filters (#10072, @adam-jian-zhang)
+  * Fix issue #10032, prioritize exact namespace match in restore (#10052, @adam-jian-zhang)
+  * Fix issue #9997, cancel ongoing PVB on timeout and wait for all PVBs to terminal state (#10039, @Lyndon-Li)
+  * Add fine-grained filters for restore via resource policy, introduced resourcePolicy field for restoreSpec, which contains ClusterScopedFilterPolicy and NamespacedFilterPolicy section (#10015, @adam-jian-zhang)
+  * Add support for matching PVCs by volume mode and access mode in resource policies, and introduce the `--global-backup-volume-policies-configmap` server flag to merge cluster-wide backup volume policies into every backup. (#10012, @chlins)
+  * Add fine-grained filters for backup via resource policy, introduced ClusterScopedFilterPolicy and NamespacedFilterPolicy section for resource policy (#10011, @adam-jian-zhang)
+  * Add operation context to user-facing error messages in CR statuses and CLI output (#10474, @chlins)
+  * Fix issue 10454, enforce resource filter policies in memory in stage 1 to fix wildcard namespace bypassing issue (#10473, @adam-jian-zhang)
+
 ## v1.18.2
 
 ### Download

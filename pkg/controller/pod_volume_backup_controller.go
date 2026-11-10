@@ -238,7 +238,7 @@ func (r *PodVolumeBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 		if r.vgdpCounter != nil && r.vgdpCounter.IsConstrained(ctx, r.logger) {
 			log.Debug("Data path initiation is constrained, requeue later")
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 		}
 
 		log.Info("Accepting PVB")
@@ -314,7 +314,7 @@ func (r *PodVolumeBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		if err != nil {
 			if err == datapath.ConcurrentLimitExceed {
 				log.Debug("Data path instance is concurrent limited requeue later")
-				return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+				return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 			} else {
 				return r.errorOut(ctx, pvb, err, "error to create data path", log)
 			}
@@ -346,7 +346,7 @@ func (r *PodVolumeBackupReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			log.WithError(err).Warnf("Failed to update PVB %s to InProgress, will data path close and retry", pvb.Name)
 
 			r.closeDataPath(ctx, pvb.Name)
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 		}
 
 		if terminated {
@@ -784,10 +784,9 @@ func UpdatePVBStatusToFailed(ctx context.Context, c client.Client, pvb *velerov1
 				pvb.Status.SnapshotID = dataPathError.GetSnapshotID()
 			}
 			if len(strings.TrimSpace(msg)) == 0 {
-				pvb.Status.Message = errOut.Error()
-			} else {
-				pvb.Status.Message = errors.WithMessage(errOut, msg).Error()
+				msg = "pod volume backup failed"
 			}
+			pvb.Status.Message = errors.WithMessage(errOut, msg).Error()
 			if pvb.Status.StartTimestamp.IsZero() {
 				pvb.Status.StartTimestamp = &metav1.Time{Time: time}
 			}

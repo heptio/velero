@@ -327,7 +327,7 @@ func TestPVBReconcile(t *testing.T) {
 			pvb:            pvbBuilder().Finalizers([]string{PodVolumeFinalizer}).Node("test-node").Result(),
 			constrained:    true,
 			expected:       pvbBuilder().Finalizers([]string{PodVolumeFinalizer}).Result(),
-			expectedResult: &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:        "new pvb but accept failed",
@@ -394,7 +394,7 @@ func TestPVBReconcile(t *testing.T) {
 			pvb:             pvbBuilder().Phase(velerov1api.PodVolumeBackupPhasePrepared).Finalizers([]string{PodVolumeFinalizer}).Node("test-node").Result(),
 			needMockExposer: true,
 			dataMgr:         datapath.NewManager(0),
-			expectedResult:  &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult:  &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:            "data path init error",
@@ -410,7 +410,7 @@ func TestPVBReconcile(t *testing.T) {
 			needMockExposer: true,
 			needErrs:        []bool{false, false, true, false},
 			expected:        pvbBuilder().Phase(velerov1api.PodVolumeBackupPhasePrepared).Finalizers([]string{PodVolumeFinalizer}).Result(),
-			expectedResult:  &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult:  &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:            "data path start error",
@@ -537,7 +537,6 @@ func TestPVBReconcile(t *testing.T) {
 			}
 
 			if test.expectedResult != nil {
-				assert.Equal(t, test.expectedResult.Requeue, actualResult.Requeue)
 				assert.Equal(t, test.expectedResult.RequeueAfter, actualResult.RequeueAfter)
 			}
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$TARGETPLATFORM golang:1.25.11-trixie
+FROM --platform=$TARGETPLATFORM golang:1.26.10-trixie
 
 ARG GOPROXY
 
@@ -98,7 +98,7 @@ RUN ARCH=$(go env GOARCH) && \
 # get golangci-lint
 # Use "go install" so the download goes through GOPROXY instead of the GitHub
 # release API/CDN, which has been returning intermittent/persistent HTTP 504s.
-RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0
+RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1
 
 # install kubectl
 RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/$(go env GOARCH)/kubectl

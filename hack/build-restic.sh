@@ -20,9 +20,10 @@ set -o pipefail
 
 # Use /output/usr/bin/ as the default output directory as this
 # is the path expected by the Velero Dockerfile.
+velero_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 output_dir=${OUTPUT_DIR:-/output/usr/bin}
 restic_bin=${output_dir}/restic
-build_path=$(dirname "$PWD")
+build_path=$(dirname "${velero_dir}")
 
 if [[ -z "${BIN}" ]]; then
     echo "BIN must be set"
@@ -50,7 +51,7 @@ fi
 mkdir ${build_path}/restic
 git clone -b v${RESTIC_VERSION} https://github.com/restic/restic.git ${build_path}/restic
 pushd ${build_path}/restic
-git apply /go/src/github.com/vmware-tanzu/velero/hack/fix_restic_cve.txt
+git apply ${velero_dir}/hack/fix_restic_cve.txt
 go run build.go --goos "${GOOS}" --goarch "${GOARCH}" --goarm "${GOARM}" -o ${restic_bin}
 chmod +x ${restic_bin}
 popd

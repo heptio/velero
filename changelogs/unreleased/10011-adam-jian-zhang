@@ -1,1 +1,0 @@
-Add fine-grained filters for backup via resource policy, introduced ClusterScopedFilterPolicy and NamespacedFilterPolicy section for resource policy

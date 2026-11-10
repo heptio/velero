@@ -1,1 +1,0 @@
-Add support for matching PVCs by volume mode and access mode in resource policies, and introduce the `--global-backup-volume-policies-configmap` server flag to merge cluster-wide backup volume policies into every backup.

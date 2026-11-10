@@ -254,12 +254,12 @@ func (r *DataDownloadReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		if r.vgdpCounter != nil && r.vgdpCounter.IsConstrained(ctx, r.logger) {
 			log.Debug("Data path initiation is constrained, requeue later")
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 		}
 
 		if _, err := r.getTargetPVC(ctx, dd); err != nil {
 			log.WithField("error", err).Debugf("Cannot find target PVC for DataDownload yet. Retry later.")
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 		}
 
 		log.Info("Data download starting")
@@ -350,7 +350,7 @@ func (r *DataDownloadReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err != nil {
 			if err == datapath.ConcurrentLimitExceed {
 				log.Debug("Data path instance is concurrent limited requeue later")
-				return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+				return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 			} else {
 				return r.errorOut(ctx, dd, err, "error to create data path", log)
 			}
@@ -381,7 +381,7 @@ func (r *DataDownloadReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			log.WithError(err).Warnf("Failed to update datadownload %s to InProgress, will data path close and retry", dd.Name)
 
 			r.closeDataPath(ctx, dd.Name)
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 		}
 
 		if terminated {
