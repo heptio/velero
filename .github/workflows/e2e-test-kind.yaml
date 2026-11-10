@@ -259,7 +259,7 @@ jobs:
       - name: Install MinIO
         run: |
           docker run -d --rm -p 9000:9000 -e "MINIO_ROOT_USER=minio" -e "MINIO_ROOT_PASSWORD=minio123" -e "MINIO_DEFAULT_BUCKETS=bucket,additional-bucket" bitnami/minio:local
-      - uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1 + fix: add curl retry flags (https://github.com/helm/kind-action/pull/165)
+      - uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1 + fix: add curl retry flags (https://github.com/helm/kind-action/pull/165)
         with:
           cluster_name: "kind"
           version: "v0.32.0"
@@ -361,7 +361,7 @@ jobs:
       - name: Install MinIO
         run: |
           docker run -d --rm -p 9000:9000 -e "MINIO_ROOT_USER=minio" -e "MINIO_ROOT_PASSWORD=minio123" -e "MINIO_DEFAULT_BUCKETS=bucket,additional-bucket" bitnami/minio:local
-      - uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1 + fix: add curl retry flags (https://github.com/helm/kind-action/pull/165)
+      - uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1 + fix: add curl retry flags (https://github.com/helm/kind-action/pull/165)
         with:
           cluster_name: "kind"
           version: "v0.32.0"
