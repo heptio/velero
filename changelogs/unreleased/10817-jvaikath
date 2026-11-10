@@ -1,1 +1,1 @@
-Treat an omitted backup hook on-error as Fail so failed pre-hooks stop the pod from being backed up and failed post-hooks are reported
+Honor the documented Fail default when a backup hook omits on-error; set on-error: Continue to keep the previous behavior

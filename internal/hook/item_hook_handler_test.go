@@ -439,7 +439,7 @@ func TestHandleHooks(t *testing.T) {
 			expectedError:        errors.New("pod hook error"),
 		},
 		{
-			name:          "pod, annotation, invalid onError = defaults to fail",
+			name:          "pod, annotation, invalid onError = keeps legacy continue behavior",
 			phase:         PhasePre,
 			groupResource: "pods",
 			item: velerotest.UnstructuredOrDie(`
@@ -459,9 +459,10 @@ func TestHandleHooks(t *testing.T) {
 			expectedPodHook: &velerov1api.ExecHook{
 				Container: "c",
 				Command:   []string{"/bin/ls"},
+				OnError:   velerov1api.HookErrorModeContinue,
 			},
 			expectedPodHookError: errors.New("pod hook error"),
-			expectedError:        errors.New("pod hook error"),
+			expectedError:        nil,
 		},
 		{
 			name:          "pod, spec, onError=fail = don't run other hooks",
@@ -667,9 +668,9 @@ func TestEffectiveBackupHookErrorMode(t *testing.T) {
 			expected: velerov1api.HookErrorModeFail,
 		},
 		{
-			name:     "unrecognized mode defaults to fail",
+			name:     "unrecognized mode is returned unchanged",
 			mode:     velerov1api.HookErrorMode("NotAMode"),
-			expected: velerov1api.HookErrorModeFail,
+			expected: velerov1api.HookErrorMode("NotAMode"),
 		},
 	}
 
@@ -739,6 +740,17 @@ func TestGetPodExecHookFromAnnotations(t *testing.T) {
 				expectedHook: &velerov1api.ExecHook{
 					Command: []string{"/usr/bin/foo"},
 					OnError: velerov1api.HookErrorModeFail,
+				},
+			},
+			{
+				name: "invalid hook mode is treated as continue",
+				annotations: map[string]string{
+					phasedKey(phase, podBackupHookCommandAnnotationKey): "/usr/bin/foo",
+					phasedKey(phase, podBackupHookOnErrorAnnotationKey): "continue",
+				},
+				expectedHook: &velerov1api.ExecHook{
+					Command: []string{"/usr/bin/foo"},
+					OnError: velerov1api.HookErrorModeContinue,
 				},
 			},
 			{
