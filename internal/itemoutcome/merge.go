@@ -50,8 +50,13 @@ func Merge(dst, src *ItemOutcomes) {
 			row.Outcome = item.Outcome
 		}
 		row.Messages = mergeMessages(row.Messages, item.Messages)
+		row.VolumeAttempts = dedupeVolumeAttempts(append(row.VolumeAttempts, item.VolumeAttempts...))
 		row.ReportedBy = mergeReportedBy(row.ReportedBy, item.ReportedBy)
 
+		if row.Volume == nil && item.Volume != nil {
+			volume := *item.Volume
+			row.Volume = &volume
+		}
 	}
 
 	sortItems(dst.Items)

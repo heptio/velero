@@ -18,7 +18,9 @@ package backup
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/velero-io/velero/internal/itemoutcome"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,4 +59,94 @@ func (ib *itemBackupper) recordOwnerReportedBy(metadata metav1.Object, item *ite
 		return
 	}
 	item.SetOwnerReportedBy(reporter)
+}
+
+func (ib *itemBackupper) trackSkippedVolumeOutcome(obj runtime.Unstructured, groupResource schema.GroupResource, approach string, reason string, byVolume bool, log logrus.FieldLogger) {
+	pvName, pvcName, pvcNamespace, err := getVolumeTrackingInfo(obj, groupResource)
+	if err == nil && (len(pvName) > 0 || len(pvcName) > 0) {
+		ib.backupRequest.SkippedVolumeTracker.Track(pvName, pvcName, pvcNamespace, approach, reason)
+
+		// The tracker is what feeds the volumeinfo artifact, but it carries no
+		// link back to the item that owned the volume, so a reader chasing a
+		// failed VM cannot tell where the skip came from. Record the same skip
+		// against the item itself so the item-outcomes artifact explains it in
+		// place. Skipped is a weaker outcome than Failed, so this never masks a
+		// real failure recorded for the same item.
+		if metadata, mErr := meta.Accessor(obj); mErr == nil {
+			method := itemOutcomeVolumeMethod(approach)
+			message := fmt.Sprintf("%s volume skipped (%s): %s", method, volumeRef(pvName, pvcName), reason)
+			if method == "" {
+				message = fmt.Sprintf("volume skipped (%s): %s", volumeRef(pvName, pvcName), reason)
+			}
+			item := ib.outcomeFor(metadata, groupResource)
+			if byVolume {
+				item.SkipVolume(message)
+				item.RecordVolumeAttempt(itemoutcome.VolumeAttempt{
+					Method:        method,
+					Skipped:       true,
+					SkippedReason: reason,
+				})
+			} else {
+				item.Skip(message)
+			}
+		}
+	} else if err != nil {
+		log.WithError(err).Info("unable to get volume tracking info, skip tracking.")
+	}
+}
+
+// volumeRef renders whichever of the PV/PVC identifiers is populated, so a
+// skip message names the volume a reader would recognise.
+func volumeRef(pvName, pvcName string) string {
+	switch {
+	case pvcName != "" && pvName != "":
+		return fmt.Sprintf("pvc=%s pv=%s", pvcName, pvName)
+	case pvcName != "":
+		return fmt.Sprintf("pvc=%s", pvcName)
+	case pvName != "":
+		return fmt.Sprintf("pv=%s", pvName)
+	default:
+		return "unknown volume"
+	}
+}
+
+// itemOutcomeVolumeMethod maps a skip-tracker approach to the artifact method name.
+func itemOutcomeVolumeMethod(approach string) string {
+	switch approach {
+	case podVolumeApproach:
+		return itemoutcome.VolumeMethodPodVolumeBackup
+	case csiSnapshotApproach:
+		return itemoutcome.VolumeMethodCSISnapshot
+	case volumeSnapshotApproach, vsphereSnapshotApproach:
+		return itemoutcome.VolumeMethodNativeSnapshot
+	case anyApproach, "":
+		return ""
+	default:
+		return approach
+	}
+}
+
+// parseSkipReasons splits the legacy "approach: reason;" string into pairs.
+func parseSkipReasons(serialized string) []Reason {
+	if serialized == "" {
+		return nil
+	}
+
+	var reasons []Reason
+	for _, entry := range strings.Split(serialized, ";") {
+		entry = strings.TrimLeft(entry, " ")
+		if entry == "" {
+			continue
+		}
+
+		approach, reason, ok := strings.Cut(entry, ": ")
+		if !ok {
+			// No prefix: keep the text as a methodless reason rather than
+			// dropping the only explanation for the skip.
+			reasons = append(reasons, Reason{Reason: entry})
+			continue
+		}
+		reasons = append(reasons, Reason{Approach: approach, Reason: reason})
+	}
+	return reasons
 }

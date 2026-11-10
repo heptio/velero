@@ -319,3 +319,56 @@ func TestRekeyPreservesSkippedByVolume(t *testing.T) {
 	assert.True(t, result.Items[0].SkippedByVolume)
 	assert.Equal(t, OutcomeSkipped, result.Items[0].Outcome)
 }
+
+func TestRecordVolumeAttemptKeepsCaptureEvidence(t *testing.T) {
+	r := NewRecorder()
+	id := pvc("ns", "disk")
+
+	r.For(id).Observe()
+	r.For(id).RecordVolumeAttempt(VolumeAttempt{
+		Method:        "PodVolumeBackup",
+		Skipped:       true,
+		SkippedReason: "opted out",
+	})
+
+	result := r.Result()
+	require.Len(t, result.Items, 1)
+	require.Len(t, result.Items[0].VolumeAttempts, 1)
+	assert.Equal(t, "PodVolumeBackup", result.Items[0].VolumeAttempts[0].Method)
+	assert.True(t, result.Items[0].VolumeAttempts[0].Skipped)
+}
+
+func TestSkipAfterSkipVolumeClearsMarker(t *testing.T) {
+	r := NewRecorder()
+	id := pvc("ns", "disk")
+
+	r.For(id).Observe()
+	r.For(id).SkipVolume("pod volume path skipped")
+	r.For(id).Skip("skipped by backup item action")
+
+	result := r.Result()
+	require.Len(t, result.Items, 1)
+	assert.Equal(t, OutcomeSkipped, result.Items[0].Outcome)
+	assert.False(t, result.Items[0].SkippedByVolume)
+}
+
+// An item-level skip on either side of a rekey must clear a volume marker.
+
+func TestRekeyItemSkipClearsVolumeMarker(t *testing.T) {
+	r := NewRecorder()
+	old := pvc("ns", "old")
+	newID := pvc("ns", "new")
+
+	r.For(old).Observe()
+	r.For(old).SkipVolume("pod volume path skipped")
+	r.For(newID).Observe()
+	r.For(newID).Skip("skipped by backup item action")
+	r.For(old).Rekey(newID)
+
+	result := r.Result()
+	require.Len(t, result.Items, 1)
+	assert.Equal(t, OutcomeSkipped, result.Items[0].Outcome)
+	assert.False(t, result.Items[0].SkippedByVolume)
+}
+
+// The reportedBy contract is a list now; old single-field edges are gone.

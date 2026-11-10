@@ -36,6 +36,7 @@ type itemOutcomeState struct {
 	outcome         Outcome
 	messages        []string
 	skippedByVolume bool
+	volumeAttempts  []VolumeAttempt
 	reportedBy      map[Key]ReportedByRef
 }
 
@@ -163,6 +164,21 @@ func (r *Recorder) SkipVolume(id velero.ResourceIdentifier, reason string) {
 	row.upgrade(OutcomeSkipped)
 	row.skippedByVolume = true
 	row.messages = append(row.messages, reason)
+}
+
+// RecordVolumeAttempt keeps a capture-time attempt on the row. The finalize
+// fold merges it into Volume.Attempts, including a skip that volume info
+// removed when another method claimed the volume.
+func (r *Recorder) RecordVolumeAttempt(id velero.ResourceIdentifier, attempt VolumeAttempt) {
+	if r == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	row := r.rowFor(id)
+	row.volumeAttempts = append(row.volumeAttempts, attempt)
 }
 
 // SetReportedBy records that a backup item action reported item as an additional
@@ -297,6 +313,7 @@ func mergeRow(dst, src *itemOutcomeState) {
 		dst.outcome = src.outcome
 	}
 	dst.messages = mergeMessages(dst.messages, src.messages)
+	dst.volumeAttempts = dedupeVolumeAttempts(append(dst.volumeAttempts, src.volumeAttempts...))
 	mergeReportedByMaps(dst, src)
 }
 
@@ -357,6 +374,7 @@ func (r *Recorder) Result() *ItemOutcomes {
 			Outcome:         row.outcome,
 			Messages:        capMessages(row.messages),
 			SkippedByVolume: row.skippedByVolume,
+			VolumeAttempts:  dedupeVolumeAttempts(row.volumeAttempts),
 		}
 		if len(row.reportedBy) > 0 {
 			item.ReportedBy = r.reportedByRefs(row.reportedBy)

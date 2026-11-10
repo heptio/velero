@@ -230,3 +230,87 @@ func TestMergeUnionsDistinctReporters(t *testing.T) {
 	assert.Equal(t, "owner", dst.Items[0].ReportedBy[1].Name)
 	assert.Equal(t, ReportSourceOwnerReference, dst.Items[0].ReportedBy[1].Source)
 }
+
+func TestMergeItemSkipClearsVolumeMarker(t *testing.T) {
+	dst := &ItemOutcomes{
+		SchemaVersion: SchemaVersion,
+		Items: []ItemOutcome{{
+			GroupResource:   pvcGR,
+			Namespace:       "ns",
+			Name:            "a",
+			Outcome:         OutcomeSkipped,
+			SkippedByVolume: true,
+		}},
+	}
+	src := &ItemOutcomes{
+		SchemaVersion: SchemaVersion,
+		Items: []ItemOutcome{{
+			GroupResource:   pvcGR,
+			Namespace:       "ns",
+			Name:            "a",
+			Outcome:         OutcomeSkipped,
+			SkippedByVolume: false,
+		}},
+	}
+
+	Merge(dst, src)
+
+	require.Len(t, dst.Items, 1)
+	assert.False(t, dst.Items[0].SkippedByVolume)
+}
+
+func TestMergeVolumeSkipSuppliesMissingMarker(t *testing.T) {
+	dst := &ItemOutcomes{
+		SchemaVersion: SchemaVersion,
+		Items: []ItemOutcome{{
+			GroupResource:   pvcGR,
+			Namespace:       "ns",
+			Name:            "a",
+			Outcome:         OutcomeSkipped,
+			SkippedByVolume: false,
+		}},
+	}
+	src := &ItemOutcomes{
+		SchemaVersion: SchemaVersion,
+		Items: []ItemOutcome{{
+			GroupResource:   pvcGR,
+			Namespace:       "ns",
+			Name:            "a",
+			Outcome:         OutcomeSkipped,
+			SkippedByVolume: true,
+		}},
+	}
+
+	Merge(dst, src)
+
+	require.Len(t, dst.Items, 1)
+	assert.True(t, dst.Items[0].SkippedByVolume)
+}
+
+func TestMergeVolumeMarkerSurvivesWhenBothSkipsAreVolume(t *testing.T) {
+	dst := &ItemOutcomes{
+		SchemaVersion: SchemaVersion,
+		Items: []ItemOutcome{{
+			GroupResource:   pvcGR,
+			Namespace:       "ns",
+			Name:            "a",
+			Outcome:         OutcomeSkipped,
+			SkippedByVolume: true,
+		}},
+	}
+	src := &ItemOutcomes{
+		SchemaVersion: SchemaVersion,
+		Items: []ItemOutcome{{
+			GroupResource:   pvcGR,
+			Namespace:       "ns",
+			Name:            "a",
+			Outcome:         OutcomeSkipped,
+			SkippedByVolume: true,
+		}},
+	}
+
+	Merge(dst, src)
+
+	require.Len(t, dst.Items, 1)
+	assert.True(t, dst.Items[0].SkippedByVolume)
+}

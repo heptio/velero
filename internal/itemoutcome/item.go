@@ -89,6 +89,15 @@ func (i *Item) SkipVolume(reason string) {
 	i.rec.SkipVolume(i.id, reason)
 }
 
+// RecordVolumeAttempt keeps a capture-time volume attempt on this item. The
+// finalize fold merges it into the owning volume's attempt list.
+func (i *Item) RecordVolumeAttempt(attempt VolumeAttempt) {
+	if i == nil {
+		return
+	}
+	i.rec.RecordVolumeAttempt(i.id, attempt)
+}
+
 // SetReportedBy records that a backup item action named this item as a sub-item
 // of the reporter.
 func (i *Item) SetReportedBy(reporter velero.ResourceIdentifier) {
@@ -108,7 +117,8 @@ func (i *Item) SetOwnerReportedBy(owner velero.ResourceIdentifier) {
 
 // Rekey follows an item renamed by a plugin. It moves the row to the new
 // identity so later writes land on the item that was actually backed up, rather
-// than minting a second row under the new name.
+// than minting a second row under the new name. Edges that name the old
+// identity are left alone; a dangling reporter is tolerated by every reader.
 func (i *Item) Rekey(id velero.ResourceIdentifier) {
 	if i == nil {
 		return
