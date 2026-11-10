@@ -99,10 +99,12 @@ func (ib *itemBackupper) backupItem(logger logrus.FieldLogger, obj runtime.Unstr
 	defer ib.tarWriter.Unlock()
 	for _, file := range files {
 		if err := ib.tarWriter.WriteHeader(file.Header); err != nil {
+			ib.recordArchiveFailure(obj, groupResource, err)
 			return false, []FileForArchive{}, errors.WithStack(err)
 		}
 
 		if _, err := ib.tarWriter.Write(file.FileBytes); err != nil {
+			ib.recordArchiveFailure(obj, groupResource, err)
 			return false, []FileForArchive{}, errors.WithStack(err)
 		}
 	}
@@ -221,6 +223,20 @@ func (ib *itemBackupper) backupItemInternal(logger logrus.FieldLogger, obj runti
 	ib.backupRequest.BackedUpItems.AddItem(key)
 	log.Info("Backing up item")
 
+	resourceIdentifier := newResourceIdentifier(groupResource, namespace, name)
+	outcome := ib.backupRequest.ItemOutcomes.For(resourceIdentifier)
+	outcome.Observe()
+
+	// failItem aggregates errs, records the failure against this item directly,
+	// and returns the aggregate for the caller to propagate. The handle is
+	// rekeyed after a plugin renames the item, so a later failure lands on the
+	// item that was actually backed up.
+	failItem := func(errs []error) error {
+		aggregate := kubeerrs.NewAggregate(errs)
+		outcome.Fail(aggregate.Error())
+		return aggregate
+	}
+
 	var (
 		backupErrs []error
 		pod        *corev1api.Pod
@@ -278,7 +294,7 @@ func (ib *itemBackupper) backupItemInternal(logger logrus.FieldLogger, obj runti
 	updatedObj, additionalItemFiles, err := ib.executeActions(log, obj, groupResource, name, namespace, metadata, finalize, itemBlock)
 	if err != nil {
 		backupErrs = append(backupErrs, err)
-		return false, itemFiles, kubeerrs.NewAggregate(backupErrs)
+		return false, itemFiles, failItem(backupErrs)
 	}
 
 	// If err is nil and updatedObj is nil, it means the item is skipped by plugin action,
@@ -286,17 +302,22 @@ func (ib *itemBackupper) backupItemInternal(logger logrus.FieldLogger, obj runti
 	if updatedObj == nil {
 		log.Infof("Remove item from the backup's backupItems list and totalItems list because it's skipped by plugin action.")
 		ib.backupRequest.BackedUpItems.DeleteItem(key)
+		outcome.Skip("skipped by backup item action")
 		return false, itemFiles, nil
 	}
 
 	itemFiles = append(itemFiles, additionalItemFiles...)
 	obj = updatedObj
 	if metadata, err = meta.Accessor(obj); err != nil {
-		return false, itemFiles, errors.WithStack(err)
+		backupErrs = append(backupErrs, errors.WithStack(err))
+		return false, itemFiles, failItem(backupErrs)
 	}
 	// update name and namespace in case they were modified in an action
 	name = metadata.GetName()
 	namespace = metadata.GetNamespace()
+	resourceIdentifier.Name = name
+	resourceIdentifier.Namespace = namespace
+	outcome.Rekey(resourceIdentifier)
 
 	if groupResource == kuberesource.PersistentVolumes {
 		if err := ib.addVolumeInfo(obj, log); err != nil {
@@ -341,12 +362,13 @@ func (ib *itemBackupper) backupItemInternal(logger logrus.FieldLogger, obj runti
 	}
 
 	if len(backupErrs) != 0 {
-		return false, itemFiles, kubeerrs.NewAggregate(backupErrs)
+		return false, itemFiles, failItem(backupErrs)
 	}
 
 	itemBytes, err := json.Marshal(obj.UnstructuredContent())
 	if err != nil {
-		return false, itemFiles, errors.WithStack(err)
+		backupErrs = append(backupErrs, errors.WithStack(err))
+		return false, itemFiles, failItem(backupErrs)
 	}
 
 	if versionPath == preferredGVR.Version {
@@ -354,7 +376,8 @@ func (ib *itemBackupper) backupItemInternal(logger logrus.FieldLogger, obj runti
 		log.Debugf("Resource %s/%s, version= %s, preferredVersion=%s", groupResource.String(), name, versionPath, preferredGVR.Version)
 		fileForArchive, err := getFileForArchive(namespace, name, groupResource.String(), "", itemBytes)
 		if err != nil {
-			return false, itemFiles, err
+			backupErrs = append(backupErrs, errors.WithStack(err))
+			return false, itemFiles, failItem(backupErrs)
 		}
 		itemFiles = append(itemFiles, fileForArchive)
 		versionPath = versionPath + velerov1api.PreferredVersionDir
@@ -362,7 +385,8 @@ func (ib *itemBackupper) backupItemInternal(logger logrus.FieldLogger, obj runti
 
 	fileForArchive, err := getFileForArchive(namespace, name, groupResource.String(), versionPath, itemBytes)
 	if err != nil {
-		return false, itemFiles, err
+		backupErrs = append(backupErrs, errors.WithStack(err))
+		return false, itemFiles, failItem(backupErrs)
 	}
 	itemFiles = append(itemFiles, fileForArchive)
 	return true, itemFiles, nil
@@ -561,6 +585,7 @@ func (ib *itemBackupper) executeActions(
 						"namespace":     additionalItem.Namespace,
 						"name":          additionalItem.Name,
 					}).Warnf("Additional item was not found in Kubernetes API, can't back it up")
+					ib.backupRequest.ItemOutcomes.For(additionalItem).Warn("additional item was not found in the Kubernetes API; it was not backed up")
 					continue
 				}
 				if err != nil {
@@ -901,6 +926,17 @@ func volumeSnapshot(backup *velerov1api.Backup, volumeName, volumeID, volumeType
 
 // resourceKey returns a string representing the object's GroupVersionKind (e.g.
 // apps/v1/Deployment).
+// newResourceIdentifier returns the canonical identifier for an item. It is a
+// small helper for the repeated GroupResource/namespace/name literal used by
+// the item-outcomes recorder.
+func newResourceIdentifier(gr schema.GroupResource, namespace, name string) velero.ResourceIdentifier {
+	return velero.ResourceIdentifier{
+		GroupResource: gr,
+		Namespace:     namespace,
+		Name:          name,
+	}
+}
+
 func resourceKey(obj runtime.Unstructured) string {
 	gvk := obj.GetObjectKind().GroupVersionKind()
 	return fmt.Sprintf("%s/%s", gvk.GroupVersion().String(), gvk.Kind)

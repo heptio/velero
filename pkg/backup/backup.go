@@ -925,6 +925,13 @@ func (kb *kubernetesBackupper) handleItemBlockPreHooks(itemBlock *BackupItemBloc
 		} else {
 			failedPods = append(failedPods, pod)
 			errs = append(errs, err)
+			// A failed pre-hook stops the pod from being backed up: the caller
+			// flags it as backed up, and backupItem's already-backed-up check
+			// returns before Observe. Record the failure here, against the pod it
+			// belongs to, or the artifact would never mention it.
+			itemBlock.itemBackupper.backupRequest.ItemOutcomes.For(
+				newResourceIdentifier(pod.Gr, pod.Item.GetNamespace(), pod.Item.GetName()),
+			).Fail(fmt.Sprintf("pre hook failed: %v", err))
 		}
 	}
 	return successPods, failedPods, errs
@@ -944,6 +951,11 @@ func (kb *kubernetesBackupper) handleItemBlockPostHooks(itemBlock *BackupItemBlo
 		if err := itemBlock.itemBackupper.itemHookHandler.HandleHooks(itemBlock.Log, pod.Gr, pod.Item, itemBlock.itemBackupper.backupRequest.ResourceHooks,
 			hook.PhasePost, itemBlock.itemBackupper.hookTracker); err != nil {
 			log.WithError(err).WithField("name", pod.Item.GetName()).Error("Error running post hooks for pod")
+			// The pod was backed up before its post hooks ran, so its row already
+			// exists. Record the failure against it directly; no other code path
+			// will, now that outcomes no longer come from the log hook.
+			itemBlock.itemBackupper.backupRequest.ItemOutcomes.For(newResourceIdentifier(pod.Gr, pod.Item.GetNamespace(), pod.Item.GetName())).
+				Fail(fmt.Sprintf("post hook failed: %v", err))
 		}
 	}
 }

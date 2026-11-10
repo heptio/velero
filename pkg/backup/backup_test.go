@@ -45,6 +45,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 
+	"github.com/velero-io/velero/internal/itemoutcome"
 	"github.com/velero-io/velero/internal/resourcepolicies"
 	"github.com/velero-io/velero/internal/volume"
 	"github.com/velero-io/velero/pkg/apis/velero/shared"
@@ -6520,4 +6521,25 @@ func TestGetNamespaceFilter_CacheBypass(t *testing.T) {
 	// Since NamespacedFilterMap is empty, this would normally return nil,
 	// but the cache should return our cachedFilter.
 	assert.Same(t, cachedFilter, req.GetNamespaceFilter("cached-ns"))
+}
+
+// The archive write happens after Observe. A write failure means the item is
+// not in the backup, so the row must not keep the Succeeded it was minted at.
+func TestRecordArchiveFailureRecordsFailedRow(t *testing.T) {
+	recorder := itemoutcome.NewRecorder()
+	ib := &itemBackupper{backupRequest: &Request{ItemOutcomes: recorder}}
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Pod",
+		"metadata":   map[string]any{"namespace": "ns", "name": "pod1"},
+	}}
+
+	ib.recordArchiveFailure(obj, schema.GroupResource{Resource: "pods"}, errors.New("archive write failed"))
+
+	items := recorder.Result().Items
+	require.Len(t, items, 1)
+	assert.Equal(t, itemoutcome.OutcomeFailed, items[0].Outcome)
+	require.Len(t, items[0].Messages, 1)
+	assert.Contains(t, items[0].Messages[0], "failed to write item to backup archive")
+	assert.Contains(t, items[0].Messages[0], "archive write failed")
 }
