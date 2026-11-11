@@ -18,6 +18,8 @@ package basic
 
 import (
 	"fmt"
+	"strings"
+	"unicode"
 
 	"github.com/cockroachdb/errors"
 	. "github.com/onsi/gomega"
@@ -40,6 +42,14 @@ const volumeGroup = "volumeinfo"
 // vgsPVCCount is how many PVCs share the group. Two is enough to tell a group
 // snapshot from two independent ones.
 const vgsPVCCount = 2
+
+// vgsVolumePrefix is the prefix CreateResources gives the grouped volumes, used
+// to pick them out of the restored pod's volume list.
+const vgsVolumePrefix = "vgs-pv-"
+
+// vgsFileName is written into every grouped volume before the backup and read
+// back after the restore.
+const vgsFileName = "vgs-data"
 
 var CSIVolumeGroupSnapshotVolumeInfoTest func() = TestFunc(&CSIVolumeGroupSnapshotVolumeInfo{
 	BackupVolumeInfo{
@@ -111,6 +121,30 @@ func (c *CSIVolumeGroupSnapshotVolumeInfo) CreateResources() error {
 	if err := WaitForReadyDeployment(c.Client.ClientGo, namespace, deployment.Name); err != nil {
 		return errors.Wrapf(err, "failed to wait for the deployment in namespace %s", namespace)
 	}
+
+	// Populate every volume in the group. The shared base leaves some volumes
+	// empty on purpose, to exercise the empty-PV data mover path, but here each
+	// member needs content so that a group snapshot which restored only some of
+	// its volumes is visible in Verify.
+	podList, err := ListPods(c.Ctx, c.Client, namespace)
+	if err != nil {
+		return errors.Wrapf(err, "failed to list pods in namespace %s", namespace)
+	}
+	for _, pod := range podList.Items {
+		for _, vol := range vols {
+			if err := CreateFileToPod(
+				namespace,
+				pod.Name,
+				DefaultContainerName,
+				vol.Name,
+				vgsFileName,
+				common.CreateFileContent(namespace, pod.Name, vol.Name),
+				c.VeleroCfg.WorkerOS,
+			); err != nil {
+				return errors.Wrapf(err, "failed to write %s to volume %s of pod %s", vgsFileName, vol.Name, pod.Name)
+			}
+		}
+	}
 	return nil
 }
 
@@ -148,6 +182,44 @@ func (c *CSIVolumeGroupSnapshotVolumeInfo) Verify() error {
 		}
 		Expect(info.CSISnapshotInfo.VolumeGroupSnapshotHandle).To(Equal(groupHandle),
 			"the volumes in the group were snapshotted by more than one VolumeGroupSnapshot")
+	}
+
+	// The metadata above only describes the backup. Check the restore as well:
+	// every volume in the group must come back with the content written before
+	// the backup, which is what shows the group snapshot was actually usable.
+	namespace := c.CaseBaseName
+	Expect(WaitForReadyDeployment(c.Client.ClientGo, namespace, c.CaseBaseName)).To(Succeed(),
+		fmt.Sprintf("the deployment in namespace %s is not ready after the restore", namespace))
+
+	podList, err := ListPods(c.Ctx, c.Client, namespace)
+	Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("failed to list pods in namespace %s after the restore", namespace))
+	Expect(podList.Items).ToNot(BeEmpty(), fmt.Sprintf("no pod was restored into namespace %s", namespace))
+
+	for _, pod := range podList.Items {
+		restored := 0
+		for _, vol := range pod.Spec.Volumes {
+			if !strings.HasPrefix(vol.Name, vgsVolumePrefix) {
+				continue
+			}
+			content, _, err := ReadFileFromPodVolume(
+				namespace,
+				pod.Name,
+				DefaultContainerName,
+				vol.Name,
+				vgsFileName,
+				c.VeleroCfg.WorkerOS,
+			)
+			Expect(err).ToNot(HaveOccurred(),
+				fmt.Sprintf("failed to read %s from volume %s of restored pod %s", vgsFileName, vol.Name, pod.Name))
+
+			content = strings.TrimRightFunc(content, unicode.IsSpace)
+			expected := common.CreateFileContent(namespace, pod.Name, vol.Name)
+			Expect(content).To(Equal(expected),
+				fmt.Sprintf("volume %s did not come back with its contents.\n expected: %s\n got: %s", vol.Name, expected, content))
+			restored++
+		}
+		Expect(restored).To(Equal(vgsPVCCount),
+			fmt.Sprintf("pod %s came back with %d of the %d volumes in the group", pod.Name, restored, vgsPVCCount))
 	}
 	return nil
 }
