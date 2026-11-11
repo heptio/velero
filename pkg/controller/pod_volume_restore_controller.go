@@ -257,7 +257,7 @@ func (r *PodVolumeRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 		if r.vgdpCounter != nil && r.vgdpCounter.IsConstrained(ctx, r.logger) {
 			log.Debug("Data path initiation is constrained, requeue later")
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 		}
 
 		log.Info("Accepting PVR")
@@ -333,7 +333,7 @@ func (r *PodVolumeRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		if err != nil {
 			if err == datapath.ConcurrentLimitExceed {
 				log.Debug("Data path instance is concurrent limited requeue later")
-				return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+				return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 			} else {
 				return r.errorOut(ctx, pvr, err, "error to create data path", log)
 			}
@@ -363,7 +363,7 @@ func (r *PodVolumeRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			log.WithError(err).Warnf("Failed to update PVR %s to InProgress, will data path close and retry", pvr.Name)
 
 			r.closeDataPath(ctx, pvr.Name)
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 		}
 
 		if terminated {

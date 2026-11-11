@@ -39,6 +39,7 @@ import (
 	. "github.com/velero-io/velero/test/e2e/basic/backup-volume-info"
 	. "github.com/velero-io/velero/test/e2e/basic/resources-check"
 	. "github.com/velero-io/velero/test/e2e/bsl-mgmt"
+	. "github.com/velero-io/velero/test/e2e/inplacerestore"
 	. "github.com/velero-io/velero/test/e2e/migration"
 	. "github.com/velero-io/velero/test/e2e/nodeagentconfig"
 	. "github.com/velero-io/velero/test/e2e/parallelfilesdownload"
@@ -267,13 +268,13 @@ func init() {
 		&test.VeleroCfg.SnapshotMoveData,
 		"snapshot-move-data",
 		false,
-		"a Switch for taking backup with Velero's data mover, if data-mover-plugin is not provided, using built-in plugin",
+		"enable snapshot data movement for backups",
 	)
 	flag.StringVar(
-		&test.VeleroCfg.DataMoverPlugin,
-		"data-mover-plugin",
+		&test.VeleroCfg.DataMover,
+		"data-mover",
 		"",
-		"customized plugin for data mover.",
+		"data mover name for snapshot data movement; empty or velero uses the built-in data mover.",
 	)
 	flag.StringVar(
 		&test.VeleroCfg.StandbyClusterCloudProvider,
@@ -712,6 +713,24 @@ var _ = Describe(
 	"Test data mover dynamic Cache PVC injection",
 	Label("NodeAgentConfig", "CachePVC"),
 	CachePVCTest,
+)
+
+var _ = Describe(
+	"Volume data in-place restore for CSI snapshot with block data mover",
+	Label("InPlaceRestoreForCSISnapshotWithBlockDataMover", "InplaceRestore", "Restore"),
+	InplaceRestoreForCSISnapshotWithBlockDataMoverTest,
+)
+
+var _ = Describe(
+	"Volume data in-place restore for CSI snapshot with file system data mover",
+	Label("InPlaceRestoreForCSISnapshotWithFileSystemDataMover", "InplaceRestore", "Restore"),
+	InplaceRestoreForCSISnapshotWithFileSystemDataMoverTest,
+)
+
+var _ = Describe(
+	"Volume data in-place restore for file system backup",
+	Label("InPlaceRestoreForFSB", "InplaceRestore", "Restore"),
+	InplaceRestoreForFileSystemBackupTest,
 )
 
 func GetKubeConfigContext() error {

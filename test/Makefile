@@ -77,7 +77,7 @@ HAS_VSPHERE_PLUGIN ?= false
 RESTORE_HELPER_IMAGE ?=
 
 #Released version only
-UPGRADE_FROM_VELERO_VERSION ?= v1.15.2,v1.16.2,v1.17.2
+UPGRADE_FROM_VELERO_VERSION ?= v1.16.2,v1.17.2,v1.18.4
 
 # UPGRADE_FROM_VELERO_CLI can has the same format(a list divided by comma) with UPGRADE_FROM_VELERO_VERSION
 # Upgrade tests will be executed sequently according to the list by UPGRADE_FROM_VELERO_VERSION
@@ -136,7 +136,7 @@ STANDBY_CLUSTER ?=
 UPLOADER_TYPE ?=
 
 SNAPSHOT_MOVE_DATA ?= false
-DATA_MOVER_PLUGIN ?=
+DATA_MOVER ?=
 DISABLE_INFORMER_CACHE ?= false
 
 DEFAULT_CLUSTER_NAME ?=
@@ -192,6 +192,10 @@ ifneq ($(origin STORAGE_CLASS_FILE_2),undefined)
 COMMON_ARGS += --storage-class-file-2=$(STORAGE_CLASS_FILE_2)
 endif
 
+.PHONY: run-e2e-kind
+run-e2e-kind:  ## Run the e2e tests against a kind cluster and MinIO that this target creates and removes
+	@$(REPO_ROOT)/hack/run-e2e-kind.sh
+
 # Make sure ginkgo is in $GOBIN
 .PHONY:ginkgo
 ginkgo: ${GOBIN}/ginkgo
@@ -230,7 +234,7 @@ run-e2e: ginkgo
 		--default-cluster-context=$(DEFAULT_CLUSTER) \
 		--standby-cluster-context=$(STANDBY_CLUSTER) \
 		--snapshot-move-data=$(SNAPSHOT_MOVE_DATA) \
-		--data-mover-plugin=$(DATA_MOVER_PLUGIN) \
+		--data-mover=$(DATA_MOVER) \
 		--standby-cluster-cloud-provider=$(STANDBY_CLUSTER_CLOUD_PROVIDER) \
 		--standby-cluster-plugins=$(STANDBY_CLUSTER_PLUGINS) \
 		--standby-cluster-object-store-provider=$(STANDBY_CLUSTER_OBJECT_STORE_PROVIDER) \

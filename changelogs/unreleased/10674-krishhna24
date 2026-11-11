@@ -1,1 +1,0 @@
-Fail the e2e suite when a Ginkgo label filter selects no specs

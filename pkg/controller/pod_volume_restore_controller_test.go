@@ -908,7 +908,7 @@ func TestPodVolumeRestoreReconcile(t *testing.T) {
 			targetPod:      builder.ForPod("test-ns", "test-pod").InitContainers(&corev1api.Container{Name: restorehelper.WaitInitContainer}).InitContainerState(corev1api.ContainerState{Running: &corev1api.ContainerStateRunning{}}).Result(),
 			constrained:    true,
 			expected:       builder.ForPodVolumeRestore(velerov1api.DefaultNamespace, pvrName).Finalizers([]string{PodVolumeFinalizer}).Result(),
-			expectedResult: &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:        "new pvr but accept failed",
@@ -976,7 +976,7 @@ func TestPodVolumeRestoreReconcile(t *testing.T) {
 			dataMgr:        datapath.NewManager(0),
 			notNilExpose:   true,
 			notMockCleanUp: true,
-			expectedResult: &ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5},
+			expectedResult: &ctrl.Result{RequeueAfter: time.Second * 5},
 		},
 		{
 			name:         "data path init error",
