@@ -208,8 +208,11 @@ jobs:
           # Labels like `backport release-1.17` select the target branch.
           label_pattern: '^backport ([^ ]+)$'
           # Carry over `kind/changelog-not-required` from the source PR so
-          # backport PRs of changelog-exempt changes aren't flagged as missing one.
-          copy_labels_pattern: '^kind/changelog-not-required$'
+          # backport PRs of changelog-exempt changes aren't flagged as missing
+          # one. The `kind/` prefix is optional: the plugin repos
+          # (velero-plugin-for-aws/gcp/microsoft-azure) name the label
+          # `changelog-not-required` without it.
+          copy_labels_pattern: '^(kind/)?changelog-not-required$'
           # Prefer draft PRs with conflict markers over failing the job silently.
           experimental: |
             {
