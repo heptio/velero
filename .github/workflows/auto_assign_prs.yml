@@ -14,6 +14,16 @@ name: "Auto Assign Author"
 # job below to make sense. Callers must grant at least `pull-requests: write`
 # in their own job-level permissions — a caller's permissions cap what this
 # called workflow's jobs can request, regardless of what's declared here.
+#
+# IMPORTANT for callers: the config file must use kentaro-m's v2 schema
+# (`addReviewers`, `reviewGroups`, `numberOfReviewers`, `skipKeywords`, ...).
+# The older necojackarc/auto-request-review schema keys (`reviewers.defaults`,
+# `groups`, `options.number_of_reviewers`, ...) are silently ignored by
+# kentaro-m — a config carried over from a removed necojackarc job will
+# still assign the author (via `addAssignees: author`) but will NOT request
+# any reviewers. This repo's own `.github/auto-assignees.yml` still carries
+# those vestigial keys; reviewer selection here comes from CODEOWNERS plus
+# the re-request-review job below, not from the config's reviewer lists.
 on:
   pull_request_target:
     types: [opened, reopened, ready_for_review]
