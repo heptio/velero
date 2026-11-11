@@ -55,6 +55,14 @@ jobs:
   # re-requests a review from the maintainer team whenever a PR still has
   # fewer than the required number of approvals, so a second CODEOWNERS
   # reviewer gets pinged.
+  #
+  # Known limitation: `pull_request_review` runs on PRs from forks carry a
+  # read-only GITHUB_TOKEN (declared permissions cannot elevate it), so the
+  # re-request call can fail there. The script catches that and logs a
+  # warning instead of failing the job — fork PRs simply don't get the
+  # automatic second ping and rely on CODEOWNERS/maintainer attention. A
+  # GitHub App installation token (or PAT) would close this gap; see the
+  # equivalent note in backport.yml.
   re-request-review:
     if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
     runs-on: ubuntu-latest

@@ -42,7 +42,18 @@ name: Backport merged pull request
 # under Settings > Actions > General for THIS repo (org-locked as of writing;
 # only an org owner can toggle it). Tracked: velero-io/velero#9603.
 # Without it, korthout/backport-action's PR-creation call fails even though
-# this workflow requests pull-requests: write.
+# this workflow requests pull-requests: write. In that case the action still
+# pushes the backport branch; a maintainer opens the PR by hand from it
+# (which, being a human action, triggers the normal pull_request workflows).
+#
+# Known limitation when that setting IS enabled: PRs (and pushes) created
+# with GITHUB_TOKEN do not trigger other GitHub Actions workflows (GitHub's
+# recursion prevention), so bot-created backport PRs won't run the
+# pull_request-triggered checks (CI, filepath check, auto-assign) until a
+# maintainer re-triggers them (e.g. close/reopen the PR or push to the
+# branch). App-based checks (e.g. the DCO probot) are unaffected and do run.
+# A GitHub App installation token or PAT for the backport job is the full
+# fix; that requires org-level setup and is intentionally out of scope here.
 #
 # Callers must grant contents: write, issues: write, and pull-requests: write
 # in their own job-level permissions (see the label-for-backport and backport
