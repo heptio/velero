@@ -36,7 +36,6 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -98,6 +97,34 @@ func isTransientAPIError(err error) bool {
 		utilnet.IsConnectionRefused(err) ||
 		utilnet.IsConnectionReset(err) ||
 		utilnet.IsProbableEOF(err)
+}
+
+// patchStartPhase patches a backup or restore out of its initial phase and
+// retries transient API errors with startPhasePatchBackoff. Both the retries and
+// the patch requests use ctx, so they stop when the reconcile is canceled, for
+// example when the controller shuts down.
+func patchStartPhase(ctx context.Context, original, updated kbclient.Object, kbClient kbclient.Client) error {
+	var lastErr error
+	err := wait.ExponentialBackoffWithContext(ctx, startPhasePatchBackoff, func(ctx context.Context) (bool, error) {
+		lastErr = kbClient.Patch(ctx, updated, kbclient.MergeFrom(original))
+		switch {
+		case lastErr == nil:
+			return true, nil
+		case isTransientAPIError(lastErr):
+			return false, nil
+		default:
+			return false, lastErr
+		}
+	})
+	if err != nil && wait.Interrupted(err) && lastErr != nil {
+		// Out of retries or canceled: report the last patch error, plus the
+		// cancellation if that is what stopped us.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("%w, last patch error: %w", ctxErr, lastErr)
+		}
+		return lastErr
+	}
+	return err
 }
 
 var autoExcludeNamespaceScopedResources = []string{
@@ -355,9 +382,7 @@ func (b *backupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// patch was not applied. If it was, the backup is already InProgress, a
 	// requeued reconcile skips it, and it stays InProgress until the server
 	// restarts. Retry such errors so the patch is confirmed before giving up.
-	if err := retry.OnError(startPhasePatchBackoff, isTransientAPIError, func() error {
-		return kubeutil.PatchResource(original, request.Backup, b.kbClient)
-	}); err != nil {
+	if err := patchStartPhase(ctx, original, request.Backup, b.kbClient); err != nil {
 		return ctrl.Result{}, errors.Wrapf(err, "error updating Backup status to %s", request.Status.Phase)
 	}
 

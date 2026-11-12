@@ -3145,3 +3145,33 @@ func TestPrepareBackupRequest_DeduplicateExcludedNamespaces(t *testing.T) {
 		})
 	}
 }
+
+func TestPatchStartPhaseStopsWhenContextIsCanceled(t *testing.T) {
+	origBackoff := startPhasePatchBackoff
+	startPhasePatchBackoff = wait.Backoff{Steps: 5, Duration: time.Millisecond, Factor: 1}
+	t.Cleanup(func() { startPhasePatchBackoff = origBackoff })
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	patches := 0
+	fakeClient := velerotest.NewFakeControllerRuntimeClientBuilder(t).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Patch: func(ctx context.Context, _ kbclient.WithWatch, _ kbclient.Object, _ kbclient.Patch, _ ...kbclient.PatchOption) error {
+				patches++
+				// The controller shuts down while the first patch is in flight.
+				cancel()
+				return apierrors.NewTimeoutError("request timed out", 1)
+			},
+		}).Build()
+
+	backup := defaultBackup().Result()
+	original := backup.DeepCopy()
+	backup.Status.Phase = velerov1api.BackupPhaseInProgress
+
+	err := patchStartPhase(ctx, original, backup, fakeClient)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.True(t, apierrors.IsTimeout(err), "the last patch error should be kept")
+	assert.Equal(t, 1, patches)
+}
