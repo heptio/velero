@@ -655,6 +655,14 @@ func TestFindPVRForTargetPod(t *testing.T) {
 	}).Build()
 	requests = reconciler.findPVRForTargetPod(t.Context(), pod)
 	assert.Len(t, requests, 1)
+
+	// client list error
+	reconciler.client = &FakeClient{
+		Client:    fake.NewClientBuilder().WithScheme(scheme).Build(),
+		listError: errors.New("list error"),
+	}
+	requests = reconciler.findPVRForTargetPod(t.Context(), pod)
+	assert.Empty(t, requests)
 }
 
 const pvrName string = "pvr-1"
@@ -1603,6 +1611,260 @@ func TestFindPVBForRestorePod(t *testing.T) {
 		if test.pod != nil {
 			r.client.Delete(ctx, test.pod, &kbclient.DeleteOptions{})
 		}
+	}
+}
+
+func TestFindPVRByRestorePod(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, velerov1api.AddToScheme(scheme))
+	require.NoError(t, corev1api.AddToScheme(scheme))
+
+	pvr := pvrBuilder().Result()
+
+	tests := []struct {
+		name      string
+		pod       corev1api.Pod
+		client    client.Client
+		expectPVR *velerov1api.PodVolumeRestore
+		expectErr bool
+	}{
+		{
+			name: "pod without pvr label",
+			pod: corev1api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: velerov1api.DefaultNamespace,
+					Name:      "pod-without-label",
+				},
+			},
+			client:    fake.NewClientBuilder().WithScheme(scheme).Build(),
+			expectPVR: nil,
+			expectErr: false,
+		},
+		{
+			name: "pod with pvr label and pvr exists",
+			pod: corev1api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: velerov1api.DefaultNamespace,
+					Name:      "pod-with-label",
+					Labels: map[string]string{
+						velerov1api.PVRLabel: pvrName,
+					},
+				},
+			},
+			client:    fake.NewClientBuilder().WithScheme(scheme).WithObjects(pvr).Build(),
+			expectPVR: pvr,
+			expectErr: false,
+		},
+		{
+			name: "pod with pvr label but get returns error",
+			pod: corev1api.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: velerov1api.DefaultNamespace,
+					Name:      "pod-with-label",
+					Labels: map[string]string{
+						velerov1api.PVRLabel: pvrName,
+					},
+				},
+			},
+			client: &FakeClient{
+				Client:   fake.NewClientBuilder().WithScheme(scheme).Build(),
+				getError: errors.New("get error"),
+			},
+			expectPVR: nil,
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := findPVRByRestorePod(t.Context(), tc.client, tc.pod)
+			if tc.expectErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else if tc.expectPVR == nil {
+				require.NoError(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tc.expectPVR.Name, result.Name)
+				assert.Equal(t, tc.expectPVR.Namespace, result.Namespace)
+			}
+		})
+	}
+}
+
+type contextTrackingClient struct {
+	client.Client
+	gotListCtx   context.Context
+	gotGetCtx    context.Context
+	gotUpdateCtx context.Context
+}
+
+func (c *contextTrackingClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	c.gotListCtx = ctx
+	return c.Client.List(ctx, list, opts...)
+}
+
+func (c *contextTrackingClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	c.gotGetCtx = ctx
+	return c.Client.Get(ctx, key, obj, opts...)
+}
+
+func (c *contextTrackingClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+	c.gotUpdateCtx = ctx
+	return c.Client.Update(ctx, obj, opts...)
+}
+
+func TestFindPVRForTargetPod_ContextPropagation(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, velerov1api.AddToScheme(scheme))
+	require.NoError(t, corev1api.AddToScheme(scheme))
+
+	pod := &corev1api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "target-pod",
+			Namespace: velerov1api.DefaultNamespace,
+			UID:       "target-pod-uid",
+		},
+	}
+
+	pvr := pvrBuilder().
+		UploaderType(uploader.KopiaType).
+		Phase(velerov1api.PodVolumeRestorePhaseAccepted).
+		Result()
+	pvr.Labels = map[string]string{
+		velerov1api.PodUIDLabel: string(pod.UID),
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pvr, pod).
+		Build()
+
+	trackingClient := &contextTrackingClient{
+		Client: fakeClient,
+	}
+
+	reconciler := &PodVolumeRestoreReconciler{
+		client: trackingClient,
+		logger: logrus.New(),
+	}
+
+	type ctxKeyType string
+	key := ctxKeyType("test-context-key")
+	sentinel := "sentinel-target-pod"
+	ctx := context.WithValue(t.Context(), key, sentinel)
+
+	requests := reconciler.findPVRForTargetPod(ctx, pod)
+	assert.Len(t, requests, 1)
+
+	require.NotNil(t, trackingClient.gotListCtx)
+	assert.Equal(t, sentinel, trackingClient.gotListCtx.Value(key))
+}
+
+func TestFindPVRByRestorePod_ContextPropagation(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, velerov1api.AddToScheme(scheme))
+	require.NoError(t, corev1api.AddToScheme(scheme))
+
+	pvr := pvrBuilder().Result()
+	pod := corev1api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: velerov1api.DefaultNamespace,
+			Name:      "pod-with-label",
+			Labels: map[string]string{
+				velerov1api.PVRLabel: pvrName,
+			},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pvr).
+		Build()
+
+	trackingClient := &contextTrackingClient{
+		Client: fakeClient,
+	}
+
+	type ctxKeyType string
+	key := ctxKeyType("test-context-key")
+	sentinel := "sentinel-by-restore-pod"
+	ctx := context.WithValue(t.Context(), key, sentinel)
+
+	result, err := findPVRByRestorePod(ctx, trackingClient, pod)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	require.NotNil(t, trackingClient.gotGetCtx)
+	assert.Equal(t, sentinel, trackingClient.gotGetCtx.Value(key))
+}
+
+func TestFindPVRForRestorePod_ContextPropagation(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, velerov1api.AddToScheme(scheme))
+	require.NoError(t, corev1api.AddToScheme(scheme))
+
+	type ctxKeyType string
+	key := ctxKeyType("test-context-key")
+
+	tests := []struct {
+		name                 string
+		pod                  *corev1api.Pod
+		expectedRequestCount int
+	}{
+		{
+			name: "running pod branch exercises Get and Update with context",
+			pod: builder.ForPod(velerov1api.DefaultNamespace, "restore-pod-running").
+				Labels(map[string]string{velerov1api.PVRLabel: pvrName}).
+				Status(corev1api.PodStatus{Phase: corev1api.PodRunning}).
+				Result(),
+			expectedRequestCount: 1,
+		},
+		{
+			name: "unrecoverable pod branch exercises Get and Update with context",
+			pod: builder.ForPod(velerov1api.DefaultNamespace, "restore-pod-failed").
+				Labels(map[string]string{velerov1api.PVRLabel: pvrName}).
+				Status(corev1api.PodStatus{Phase: corev1api.PodFailed}).
+				Result(),
+			expectedRequestCount: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pvr := pvrBuilder().
+				UploaderType(uploader.KopiaType).
+				Phase(velerov1api.PodVolumeRestorePhaseAccepted).
+				Result()
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(pvr, tc.pod).
+				Build()
+
+			trackingClient := &contextTrackingClient{
+				Client: fakeClient,
+			}
+
+			reconciler := &PodVolumeRestoreReconciler{
+				client: trackingClient,
+				logger: logrus.New(),
+			}
+
+			sentinel := fmt.Sprintf("sentinel-%s", tc.name)
+			ctx := context.WithValue(t.Context(), key, sentinel)
+
+			requests := reconciler.findPVRForRestorePod(ctx, tc.pod)
+			assert.Len(t, requests, tc.expectedRequestCount)
+
+			require.NotNil(t, trackingClient.gotGetCtx)
+			assert.Equal(t, sentinel, trackingClient.gotGetCtx.Value(key))
+
+			require.NotNil(t, trackingClient.gotUpdateCtx)
+			assert.Equal(t, sentinel, trackingClient.gotUpdateCtx.Value(key))
+		})
 	}
 }
 

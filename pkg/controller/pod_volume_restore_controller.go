@@ -707,7 +707,7 @@ func (r *PodVolumeRestoreReconciler) findPVRForTargetPod(ctx context.Context, po
 			velerov1api.PodUIDLabel: string(pod.GetUID()),
 		}).AsSelector(),
 	}
-	if err := r.client.List(context.TODO(), list, options); err != nil {
+	if err := r.client.List(ctx, list, options); err != nil {
 		r.logger.WithField("pod", fmt.Sprintf("%s/%s", pod.GetNamespace(), pod.GetName())).WithError(err).
 			Error("unable to list PodVolumeRestores")
 		return []reconcile.Request{}
@@ -731,7 +731,7 @@ func (r *PodVolumeRestoreReconciler) findPVRForTargetPod(ctx context.Context, po
 
 func (r *PodVolumeRestoreReconciler) findPVRForRestorePod(ctx context.Context, podObj client.Object) []reconcile.Request {
 	pod := podObj.(*corev1api.Pod)
-	pvr, err := findPVRByRestorePod(r.client, *pod)
+	pvr, err := findPVRByRestorePod(ctx, r.client, *pod)
 
 	log := r.logger.WithField("pod", pod.Name)
 	if err != nil {
@@ -757,7 +757,7 @@ func (r *PodVolumeRestoreReconciler) findPVRForRestorePod(ctx context.Context, p
 	if pod.Status.Phase == corev1api.PodRunning {
 		log.Info("Preparing PVR")
 
-		if err = UpdatePVRWithRetry(context.Background(), r.client, types.NamespacedName{Namespace: pvr.Namespace, Name: pvr.Name}, log,
+		if err = UpdatePVRWithRetry(ctx, r.client, types.NamespacedName{Namespace: pvr.Namespace, Name: pvr.Name}, log,
 			func(pvr *velerov1api.PodVolumeRestore) bool {
 				if isPVRInFinalState(pvr) {
 					log.Warnf("PVR %s is terminated, abort setting it to prepared", pvr.Name)
@@ -771,7 +771,7 @@ func (r *PodVolumeRestoreReconciler) findPVRForRestorePod(ctx context.Context, p
 			return []reconcile.Request{}
 		}
 	} else if unrecoverable, reason := kube.IsPodUnrecoverable(pod, log); unrecoverable {
-		err := UpdatePVRWithRetry(context.Background(), r.client, types.NamespacedName{Namespace: pvr.Namespace, Name: pvr.Name}, log,
+		err := UpdatePVRWithRetry(ctx, r.client, types.NamespacedName{Namespace: pvr.Namespace, Name: pvr.Name}, log,
 			func(pvr *velerov1api.PodVolumeRestore) bool {
 				if pvr.Spec.Cancel {
 					return false
@@ -1016,10 +1016,10 @@ func getPVROwnerObject(pvr *velerov1api.PodVolumeRestore) corev1api.ObjectRefere
 	}
 }
 
-func findPVRByRestorePod(client client.Client, pod corev1api.Pod) (*velerov1api.PodVolumeRestore, error) {
+func findPVRByRestorePod(ctx context.Context, client client.Client, pod corev1api.Pod) (*velerov1api.PodVolumeRestore, error) {
 	if label, exist := pod.Labels[velerov1api.PVRLabel]; exist {
 		pvr := &velerov1api.PodVolumeRestore{}
-		err := client.Get(context.Background(), types.NamespacedName{
+		err := client.Get(ctx, types.NamespacedName{
 			Namespace: pod.Namespace,
 			Name:      label,
 		}, pvr)
