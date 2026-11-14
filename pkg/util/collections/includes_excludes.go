@@ -149,6 +149,11 @@ func (nie *NamespaceIncludesExcludes) ShouldInclude(s string) bool {
 // IncludeEverything returns true if the includes list is empty or '*'
 // and the excludes list is empty, or false otherwise.
 func (nie *NamespaceIncludesExcludes) IncludeEverything() bool {
+	// A wildcard that matched no namespace leaves the includes list empty,
+	// which must not be mistaken for "include everything". See ShouldInclude.
+	if nie.wildcardExpanded && nie.includesExcludes.includes.Len() == 0 {
+		return false
+	}
 	return nie.includesExcludes.IncludeEverything()
 }
 
